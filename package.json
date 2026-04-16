@@ -1,0 +1,29 @@
+{
+  "name": "finance-app",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "dev": "npm run dev -w frontend",
+    "build": "npm run build -w frontend",
+    "start": "npm run start -w frontend",
+    "lint": "npm run lint -w frontend",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "prisma:generate": "npm run prisma:generate -w database",
+    "prisma:migrate": "npm run prisma:migrate -w database",
+    "prisma:studio": "npm run prisma:studio -w database",
+    "seed": "npm run seed -w database"
+  },
+  "workspaces": [
+    "frontend",
+    "backend",
+    "database",
+    "ai"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

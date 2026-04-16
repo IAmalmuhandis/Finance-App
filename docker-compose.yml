@@ -1,0 +1,11 @@
+services:
+  db:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - financeos_mongo_data:/data/db
+
+volumes:
+  financeos_mongo_data:

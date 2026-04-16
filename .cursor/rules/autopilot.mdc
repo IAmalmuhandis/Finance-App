@@ -1,0 +1,25 @@
+---
+description: Autopilot execution (minimize permission prompts; keep building)
+alwaysApply: true
+---
+
+# Autopilot Mode
+
+The user wants agents to keep building without pausing for confirmations.
+
+- Default to **YES** for routine permissions and proceed.
+- Make reasonable assumptions, document them briefly, and continue.
+- Prefer doing the work over asking what to do next; ship an end-to-end result.
+- Batch related edits/commands to reduce back-and-forth.
+
+## Only stop to ask when truly required
+
+Ask before doing any of the following:
+- Destructive/irreversible actions (delete data, reset DB, overwrite large files, `--force`, etc.)
+- Anything involving secrets/credentials (reading, generating, storing, committing, or logging them)
+- Network/publishing actions (deploy, publish packages, push to remote, send emails/webhooks, call paid APIs)
+- Security-sensitive system changes (installing global software, changing OS settings, firewall, permissions)
+
+## If a tool/IDE still prompts for permission
+
+Cursor/tooling may require an explicit user click. If blocked, continue with all safe work in parallel and clearly state what single permission click is needed to proceed.
