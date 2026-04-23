@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Tooltip, XAxis, YAxis, LineChart, Line, CartesianGrid, Cell } from "recharts";
 import { AlertTriangle, Info, TrendingUp } from "lucide-react";
@@ -27,6 +28,23 @@ export default function DashboardPage() {
   return (
     <div className="p-8">
       <TopBar title="Dashboard" showDateFilter />
+      <Link
+        href="/tracker"
+        className="mt-6 flex items-center justify-between gap-4 rounded-xl border border-border-subtle bg-bg-surface p-4 transition hover:border-accent-blue/50 hover:bg-bg-elevated"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-blue/15 text-accent-blue">
+            <TrendingUp size={20} />
+          </div>
+          <div>
+            <p className="font-semibold text-text-primary">Track &amp; formula</p>
+            <p className="text-sm text-text-secondary">
+              Income split calculator (e.g. 20-10-30-25-15), edit buckets, weekly check-ins, and monthly log — matches the mobile app.
+            </p>
+          </div>
+        </div>
+        <span className="text-sm font-medium text-accent-blue">Open</span>
+      </Link>
       <div className="mt-8 grid gap-4 md:grid-cols-4">
         <Card title="Total Income" value={money(s.totalIncome)} delta={delta(s.totalIncome, p.totalIncome)} accent="border-accent-green" />
         <Card title="Total Spent" value={money(s.totalExpenses)} delta={delta(s.totalExpenses, p.totalExpenses)} accent="border-accent-red" />

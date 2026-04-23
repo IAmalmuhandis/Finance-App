@@ -1,17 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  BarChart2,
-  Building2,
-  LayoutDashboard,
-  List,
-  Menu,
-  MessageSquare,
-  TrendingUp,
-  Upload,
-  X,
-} from "lucide-react";
+import { BarChart2, Building2, LayoutDashboard, List, Menu, TrendingUp, Upload, X } from "lucide-react";
 import { useState } from "react";
 
 const nav = [
@@ -20,7 +10,7 @@ const nav = [
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/transactions", label: "Transactions", icon: List },
   { href: "/reports", label: "Reports", icon: BarChart2 },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/tracker", label: "Track & formula", icon: TrendingUp },
 ];
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -28,7 +18,10 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="space-y-2 px-3">
       {nav.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(item.href + "/");
+        const active =
+          pathname === item.href ||
+          pathname.startsWith(item.href + "/") ||
+          (item.href === "/tracker" && pathname === "/formula");
         const Icon = item.icon;
         return (
           <Link
@@ -61,13 +54,17 @@ export function Sidebar() {
         <Menu size={18} />
       </button>
 
-      <aside className="fixed inset-y-0 left-0 hidden w-[240px] border-r border-border-subtle bg-[#080D1A] md:flex md:flex-col">
-        <div className="flex items-center gap-2 px-5 py-5 text-text-primary">
-          <TrendingUp className="text-accent-blue" size={18} />
-          <span className="text-[18px] font-semibold">Finance OS</span>
+      <aside className="fixed inset-y-0 left-0 hidden w-[240px] flex-col border-r border-border-subtle bg-[#080D1A] md:flex">
+        <div className="shrink-0 border-b border-border-subtle/60 px-5 py-5 text-text-primary">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="text-accent-blue" size={18} />
+            <span className="text-[18px] font-semibold">Finance OS</span>
+          </div>
         </div>
-        <SidebarNav />
-        <div className="mt-auto border-t border-border-subtle p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <SidebarNav />
+        </div>
+        <div className="shrink-0 border-t border-border-subtle p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-bg-elevated text-sm font-semibold">DU</div>
             <div>
@@ -80,17 +77,21 @@ export function Sidebar() {
 
       {open ? (
         <div className="fixed inset-0 z-50 bg-black/50 md:hidden">
-          <aside className="h-full w-[240px] border-r border-border-subtle bg-[#080D1A]">
-            <div className="flex items-center justify-between px-5 py-5">
-              <div className="flex items-center gap-2 text-text-primary">
-                <TrendingUp className="text-accent-blue" size={18} />
-                <span className="text-[18px] font-semibold">Finance OS</span>
+          <aside className="flex h-full w-[240px] flex-col border-r border-border-subtle bg-[#080D1A]">
+            <div className="shrink-0 border-b border-border-subtle/60">
+              <div className="flex items-center justify-between px-5 py-5 text-text-primary">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="text-accent-blue" size={18} />
+                  <span className="text-[18px] font-semibold">Finance OS</span>
+                </div>
+                <button type="button" onClick={() => setOpen(false)} className="text-text-secondary" aria-label="Close menu">
+                  <X size={18} />
+                </button>
               </div>
-              <button onClick={() => setOpen(false)} className="text-text-secondary">
-                <X size={18} />
-              </button>
             </div>
-            <SidebarNav onNavigate={() => setOpen(false)} />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <SidebarNav onNavigate={() => setOpen(false)} />
+            </div>
           </aside>
         </div>
       ) : null}
