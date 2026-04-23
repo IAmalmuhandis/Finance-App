@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -33,6 +33,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.542.0",
+    "mongodb-connection-string-url": "^7.0.0",
     "mongoose": "^9.4.1",
     "next": "16.2.4",
     "next-auth": "^4.24.11",
@@ -41,6 +42,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.62.0",
+    "react-is": "^16.13.1",
     "react-markdown": "^10.1.0",
     "recharts": "^3.2.0",
     "reusify": "^1.1.0",
