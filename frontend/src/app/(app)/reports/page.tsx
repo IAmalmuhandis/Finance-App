@@ -69,9 +69,62 @@ export default function ReportsPage() {
 
       {active ? (
         <div className="mt-4 rounded-xl border border-border-subtle bg-bg-surface p-5">
-          <div className="mb-2 flex items-center justify-between"><h3 className="text-lg font-semibold">{active.title}</h3><button onClick={() => window.print()} className="rounded border border-border-subtle px-3 py-1 text-sm">Download PDF</button></div>
-          <div className="grid gap-3 md:grid-cols-3">{["totalIncome","totalExpenses","netPosition","topCategory","savingsRate","transactionCount"].map((k) => <div key={k} className="rounded border border-border-subtle bg-bg-input p-3 text-sm"><p className="text-text-muted">{k}</p><p className="font-semibold">{String(active.content?.[k] ?? "-")}</p></div>)}</div>
-          <div className="prose prose-invert mt-4 max-w-none"><ReactMarkdown>{`## Overview\n${active.content?.overview || ""}\n\n## Spending Patterns\n${active.content?.spendingPatterns || ""}\n\n## Risk Assessment\n${active.content?.riskAssessment || ""}`}</ReactMarkdown></div>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">{active.title}</h3>
+            <button type="button" onClick={() => window.print()} className="rounded border border-border-subtle px-3 py-1 text-sm">Print / Save as PDF</button>
+          </div>
+          {active.content?.financialAudit ? (
+            <div className="mb-4 rounded-lg border border-border-subtle bg-bg-elevated p-4">
+              <h4 className="mb-2 text-sm font-semibold text-text-primary">Automated audit (rule-based)</h4>
+              <p className="text-sm text-text-secondary">Health score: <span className="font-bold text-text-primary">{active.content.financialAudit.healthScore}/100</span> ({active.content.financialAudit.healthLabel})</p>
+              {active.content.financialAudit.flags?.length ? (
+                <ul className="mt-2 list-inside list-disc text-sm text-text-secondary">
+                  {active.content.financialAudit.flags.map((f: { code: string; level: string; message: string }, i: number) => (
+                    <li key={i}><span className="text-text-muted">[{f.level}]</span> {f.message}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          {active.content?.executiveSummary ? (
+            <p className="mb-3 text-sm leading-relaxed text-text-secondary"><span className="font-semibold text-text-primary">Executive summary: </span>{active.content.executiveSummary}</p>
+          ) : null}
+          {active.content?.financialStatus?.narrative ? (
+            <p className="mb-3 text-sm leading-relaxed text-text-secondary"><span className="font-semibold text-text-primary">Status: </span>{active.content.financialStatus.narrative}</p>
+          ) : null}
+          {active.content?.auditFindings?.length ? (
+            <div className="mb-3">
+              <h4 className="mb-1 text-sm font-semibold">Audit findings</h4>
+              <ul className="space-y-1 text-sm text-text-secondary">
+                {active.content.auditFindings.map(
+                  (a: { severity: string; area: string; finding: string; evidence: string }, i: number) => (
+                    <li key={i} className="rounded border border-border-subtle bg-bg-input p-2">
+                      <span className="text-xs text-accent-amber">[{a.severity}] {a.area}</span>
+                      <p className="text-text-primary">{a.finding}</p>
+                      <p className="text-xs text-text-muted">{a.evidence}</p>
+                    </li>
+                  )
+                )}
+              </ul>
+            </div>
+          ) : null}
+          {active.content?.detailedReconciliation ? (
+            <p className="mb-3 text-sm leading-relaxed text-text-secondary">
+              <span className="font-semibold text-text-primary">Reconciliation: </span>
+              {active.content.detailedReconciliation}
+            </p>
+          ) : null}
+          <div className="grid gap-3 md:grid-cols-3">
+            {["totalIncome", "totalExpenses", "netPosition", "topCategory", "savingsRate", "transactionCount"].map((k) => (
+              <div key={k} className="rounded border border-border-subtle bg-bg-input p-3 text-sm">
+                <p className="text-text-muted">{k}</p>
+                <p className="font-semibold">{String(active.content?.[k] ?? "-")}</p>
+              </div>
+            ))}
+          </div>
+          <div className="prose prose-invert mt-4 max-w-none">
+            <ReactMarkdown>{`## Overview\n${active.content?.overview || ""}\n\n## Spending patterns\n${active.content?.spendingPatterns || ""}\n\n## Risk\n${active.content?.riskAssessment || ""}`}</ReactMarkdown>
+          </div>
         </div>
       ) : null}
 

@@ -52,6 +52,14 @@ export default function UploadPage() {
   return (
     <div className="p-8">
       <TopBar title="Upload Statement" />
+      <div className="mt-4 space-y-2 rounded-lg border border-border-subtle bg-bg-elevated/60 p-4 text-sm text-text-secondary">
+        <p className="text-text-primary font-medium">No cloud AI is used</p>
+        <p>
+          CSV and Excel imports read your file by <span className="text-text-primary">column headers</span> (date, description, debit/credit, amount, etc.).
+          PDFs use a <span className="text-text-primary">line-and-number pattern</span> on the text in the file; for best results use a CSV or Excel download from your bank.
+        </p>
+        <p className="text-text-muted text-xs">Scan-only or image PDFs: full OCR is not available yet (coming later).</p>
+      </div>
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[420px_1fr]">
         <div className="rounded-xl border border-border-subtle bg-bg-surface p-4">
           <p className="mb-2 text-sm text-text-secondary">Step 1 - Account selector</p>
@@ -78,12 +86,22 @@ export default function UploadPage() {
             <div className="grid min-h-[420px] place-items-center rounded-xl border border-dashed border-border-subtle text-text-secondary">Your parsed transactions will appear here</div>
           ) : (
             <div>
-              <p className="mb-3 text-sm">{summary?.count} transactions — ₦{summary?.totalCredit?.toLocaleString()} income, ₦{summary?.totalDebit?.toLocaleString()} expenses</p>
+              <p className="mb-3 text-sm">
+                {summary?.count} transactions — ₦{summary?.totalCredit?.toLocaleString() ?? 0} in, ₦{summary?.totalDebit?.toLocaleString() ?? 0} out
+                {typeof summary?.net === "number" ? `, net ₦${summary.net.toLocaleString()}` : ""}
+                {summary?.dateFrom && summary?.dateTo ? ` · ${summary.dateFrom} → ${summary.dateTo}` : ""}
+              </p>
               {statementDocument ? (
                 <div className="mb-3 rounded-lg border border-border-subtle bg-bg-elevated p-2 text-xs text-text-secondary">
                   <p>Period: {statementDocument.statement?.periodStart || "-"} to {statementDocument.statement?.periodEnd || "-"}</p>
                   <p>Opening/Closing Balance: {statementDocument.statement?.openingBalance ?? "-"} / {statementDocument.statement?.closingBalance ?? "-"}</p>
-                  <p>Parser: {statementDocument.source?.parserUsed || "-"} {statementDocument.parser?.fallbackUsed ? "(fallback used)" : ""}</p>
+                  <p>Parser: {statementDocument.source?.parserUsed || "-"}{" "}
+                    {statementDocument.parser?.aiUsed
+                      ? "(AI)"
+                      : statementDocument.parser?.fallbackUsed
+                        ? "(pattern-based / PDF text)"
+                        : ""}
+                  </p>
                 </div>
               ) : null}
               <div className="max-h-[400px] overflow-auto rounded-lg border border-border-subtle">

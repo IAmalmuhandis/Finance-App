@@ -11,4 +11,7 @@
 /examples
 /tests
 /tmp
-/vendor                     
+/vendor
+.expo/
+**/.env
+**/.env.local

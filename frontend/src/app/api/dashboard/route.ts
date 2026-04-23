@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
+import mongoose from "mongoose";
 import { connectMongo } from "@/lib/mongodb";
 import { getRequestUserId } from "@/lib/request-user";
 import { Transaction } from "@/lib/models/Transaction";
@@ -53,9 +54,16 @@ export async function GET(req: Request) {
       Report.findOne({ userId }).sort({ createdAt: -1 }).lean(),
     ]);
 
-    const accountIds = [...new Set(recentTransactions.map((t: any) => String(t.accountId)))];
-    const accounts = await Account.find({ _id: { $in: accountIds } }).lean();
-    const accountMap = new Map(accounts.map((a: any) => [String(a._id), a]));
+    const accountIds = [
+      ...new Set(
+        (recentTransactions as { accountId?: unknown }[])
+          .map((t) => (t.accountId != null ? String(t.accountId) : ""))
+          .filter((id) => id && id !== "undefined" && mongoose.Types.ObjectId.isValid(id))
+      ),
+    ];
+    const accounts =
+      accountIds.length > 0 ? await Account.find({ _id: { $in: accountIds } }).lean() : [];
+    const accountMap = new Map(accounts.map((a: { _id: unknown }) => [String(a._id), a]));
 
     const statify = (arr: any[]) => {
       const totalIncome = arr.filter((t) => t.type === "CREDIT").reduce((s, t) => s + t.amount, 0);
@@ -68,26 +76,66 @@ export async function GET(req: Request) {
     const prevStats = statify(prevTxns as any[]);
 
     const monthMap = new Map<string, { month: string; income: number; expenses: number }>();
-    for (const row of monthlyChart) {
-      const m = row._id.month;
+    for (const row of monthlyChart as { _id?: { month?: string; type?: string }; total?: number }[]) {
+      const id = row._id;
+      if (!id || typeof id !== "object" || !id.month) {
+        continue;
+      }
+      const m = id.month;
       const cur = monthMap.get(m) || { month: m, income: 0, expenses: 0 };
-      if (row._id.type === "CREDIT") cur.income = row.total;
-      else cur.expenses = row.total;
+      if (id.type === "CREDIT") {
+        cur.income = row.total ?? 0;
+      } else {
+        cur.expenses = row.total ?? 0;
+      }
       monthMap.set(m, cur);
     }
+
+    const pickAccount = (a: { bankName?: string; nickname?: string; color?: string } | null | undefined) => {
+      if (!a) return null;
+      return {
+        bankName: a.bankName ?? "",
+        nickname: a.nickname ?? "",
+        color: a.color ?? "#3B82F6",
+      };
+    };
+    const safeRecent = (recentTransactions as Record<string, unknown>[]).map((t) => {
+      const id = t._id != null ? String(t._id) : "";
+      const d = t.date;
+      const dateOut = d instanceof Date ? d.toISOString() : typeof d === "string" ? d : null;
+      const accId = t.accountId != null ? String(t.accountId) : "";
+      const acc =
+        accId && mongoose.Types.ObjectId.isValid(accId)
+          ? pickAccount(accountMap.get(accId) as { bankName?: string; nickname?: string; color?: string } | undefined)
+          : null;
+      return {
+        _id: id,
+        amount: Number(t.amount) || 0,
+        date: dateOut,
+        description: String(t.description ?? ""),
+        type: String(t.type ?? ""),
+        category: t.category != null ? String(t.category) : undefined,
+        month: t.month != null ? String(t.month) : undefined,
+        accountId: accId,
+        account: acc,
+      };
+    });
+
+    const insightsRaw = (latestReport as { content?: { insights?: unknown } } | null)?.content?.insights;
+    const insights = Array.isArray(insightsRaw) ? insightsRaw : [];
 
     return NextResponse.json({
       stats,
       prevStats,
       monthlyChart: [...monthMap.values()],
       categoryChart: categoryChart.map((c) => ({ category: c._id || "Other", amount: c.amount })),
-      recentTransactions: recentTransactions.map((t: any) => ({
-        ...t,
-        account: accountMap.get(String(t.accountId)) || null,
-      })),
-      insights: (latestReport as any)?.content?.insights || [],
+      recentTransactions: safeRecent,
+      insights,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Failed to load dashboard" }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message || String(error) || "Failed to load dashboard" },
+      { status: 500 }
+    );
   }
 }

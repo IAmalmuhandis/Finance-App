@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import Papa from "papaparse";
 import pdfParse from "pdf-parse";
 import { connectMongo } from "@/lib/mongodb";
@@ -8,6 +7,9 @@ import { Account } from "@/lib/models/Account";
 import { categorize } from "@/lib/categorize";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { parseLineBasedStatementText } from "@/lib/parse-statement-import";
+
+export const maxDuration = 300;
 
 type ParsedTxn = {
   date: string;
@@ -88,47 +90,57 @@ function parseMoney(raw: unknown): number {
 }
 
 function parseRecordRow(row: Record<string, unknown>): ParsedTxn | null {
-  const entries = Object.fromEntries(Object.entries(row).map(([k, v]) => [k.toLowerCase().trim(), String(v ?? "").trim()]));
-  const dateRaw = entries.date || entries["transaction date"] || entries.posted || entries.datetime || entries.value_date;
-  const description = entries.description || entries.memo || entries.narration || entries.details || entries.remark || entries.remarks;
+  const entries = Object.fromEntries(
+    Object.entries(row).map(([k, v]) => [k.toLowerCase().trim().replace(/\s+/g, " "), String(v ?? "").trim()])
+  );
+  const dateRaw =
+    entries.date ||
+    entries["transaction date"] ||
+    entries["trans date"] ||
+    entries["txn date"] ||
+    entries["value date"] ||
+    entries["posting date"] ||
+    entries.posted ||
+    entries.datetime ||
+    entries["value_date"];
+  const descriptionRaw =
+    entries.description ||
+    entries.memo ||
+    entries.narration ||
+    entries.details ||
+    entries["transaction details"] ||
+    entries["transaction description"] ||
+    entries.particulars ||
+    entries.payee ||
+    entries.merchant ||
+    entries["payee name"] ||
+    entries.remarks ||
+    entries.remark ||
+    entries.notes;
+  const w = parseMoney(entries.withdrawal || entries["money out"] || entries["debit amount"]);
+  const dep = parseMoney(entries.deposit || entries["money in"] || entries["credit amount"]);
   const debit = parseMoney(entries.debit);
   const credit = parseMoney(entries.credit);
   const signedAmount = Number.isFinite(debit)
     ? -Math.abs(debit)
     : Number.isFinite(credit)
       ? Math.abs(credit)
-      : parseMoney(entries.amount);
-  if (!dateRaw || !description || !Number.isFinite(signedAmount)) return null;
+      : Number.isFinite(w)
+        ? -Math.abs(w)
+        : Number.isFinite(dep)
+          ? Math.abs(dep)
+          : parseMoney(entries.amount);
+  if (!dateRaw || !Number.isFinite(signedAmount) || Math.abs(signedAmount) < 0.0001) {
+    return null;
+  }
   const date = normalizeDate(dateRaw);
   if (!date) return null;
+  const description = (descriptionRaw || "Transaction").trim() || "Transaction";
   let type = entries.type?.toUpperCase() as "CREDIT" | "DEBIT";
-  if (type !== "CREDIT" && type !== "DEBIT") type = signedAmount < 0 ? "DEBIT" : "CREDIT";
-  return { date, description, amount: Math.abs(signedAmount), type, category: categorize(description) };
-}
-
-function parsePdfFallback(text: string): ParsedTxn[] {
-  const out: ParsedTxn[] = [];
-  for (const lineRaw of text.split(/\r?\n/)) {
-    const line = lineRaw.trim();
-    if (!line) continue;
-    const dateMatch = line.match(/(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{4}-\d{2}-\d{2})/);
-    const amountMatch = line.match(/(-?\d[\d,]*\.\d{2})/g);
-    if (!dateMatch || !amountMatch?.length) continue;
-    const date = normalizeDate(dateMatch[1]);
-    if (!date) continue;
-    const amountRaw = amountMatch[amountMatch.length - 1];
-    const signedAmount = parseMoney(amountRaw);
-    if (!Number.isFinite(signedAmount)) continue;
-    const description = line
-      .replace(dateMatch[1], "")
-      .replace(amountRaw, "")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!description) continue;
-    const type: "CREDIT" | "DEBIT" = signedAmount < 0 ? "DEBIT" : "CREDIT";
-    out.push({ date, description, amount: Math.abs(signedAmount), type, category: categorize(description) });
+  if (type !== "CREDIT" && type !== "DEBIT") {
+    type = signedAmount < 0 ? "DEBIT" : "CREDIT";
   }
-  return out;
+  return { date, description, amount: Math.abs(signedAmount), type, category: categorize(description) };
 }
 
 function extractAccountNumber(text: string): string {
@@ -250,6 +262,7 @@ export async function POST(req: Request) {
     let txns: ParsedTxn[] = [];
     let parserUsed = "unknown";
     let aiUsed = false;
+    /** Heuristic / non-structured import (e.g. PDF line patterns) */
     let fallbackUsed = false;
     let detectedColumns: string[] = [];
     let rawText = "";
@@ -265,50 +278,33 @@ export async function POST(req: Request) {
       file.name.toLowerCase().endsWith(".xls")
     ) {
       const wb = XLSX.read(buffer, { type: "buffer" });
-      const first = wb.SheetNames[0];
-      if (!first) return NextResponse.json({ error: "No sheets found in Excel file" }, { status: 400 });
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[first], { defval: "" });
-      detectedColumns = Object.keys(rows?.[0] || {});
+      if (!wb.SheetNames.length) {
+        return NextResponse.json({ error: "No sheets found in Excel file" }, { status: 400 });
+      }
+      const allRows: Record<string, unknown>[] = [];
+      for (const name of wb.SheetNames) {
+        const sh = wb.Sheets[name];
+        if (!sh) {
+          continue;
+        }
+        const part = XLSX.utils.sheet_to_json<Record<string, unknown>>(sh, { defval: "" });
+        if (part.length) {
+          allRows.push(...part);
+        }
+      }
+      if (!allRows.length) {
+        return NextResponse.json({ error: "No data rows in Excel file" }, { status: 400 });
+      }
+      detectedColumns = Object.keys(allRows[0] || {});
       parserUsed = "excel";
-      txns = rows.map((r) => parseRecordRow(r)).filter(Boolean) as ParsedTxn[];
+      txns = allRows.map((r) => parseRecordRow(r)).filter(Boolean) as ParsedTxn[];
     } else if (file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf")) {
       const pdf = await pdfParse(buffer);
       rawText = pdf.text || "";
       parserUsed = "pdf";
-      if (process.env.ANTHROPIC_API_KEY) {
-        try {
-          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-          const completion = await anthropic.messages.create({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 3000,
-            system:
-              "You are a bank statement parser. Extract all transactions from the following bank statement text. Return ONLY a JSON array with no other text. Each item: { date: 'YYYY-MM-DD', description: string, amount: number (always positive), type: 'CREDIT' | 'DEBIT' }",
-            messages: [{ role: "user", content: pdf.text }],
-          });
-          const text = completion.content.map((c: any) => ("text" in c ? c.text : "")).join("");
-          const start = text.indexOf("[");
-          const end = text.lastIndexOf("]");
-          if (start !== -1 && end !== -1 && end > start) {
-            const rows = JSON.parse(text.slice(start, end + 1));
-            aiUsed = true;
-            txns = rows
-              .map((t: any) => ({
-                date: normalizeDate(String(t.date || "")),
-                description: String(t.description || "").trim(),
-                amount: Math.abs(Number(t.amount)),
-                type: t.type === "DEBIT" ? "DEBIT" : "CREDIT",
-                category: categorize(String(t.description || "")),
-              }))
-              .filter((t: ParsedTxn) => Boolean(t.date && t.description) && Number.isFinite(t.amount));
-          }
-        } catch {
-          txns = [];
-        }
-      }
-      if (txns.length === 0) {
-        fallbackUsed = true;
-        txns = parsePdfFallback(pdf.text);
-      }
+      const lineOnly = parseLineBasedStatementText(rawText);
+      txns = lineOnly as ParsedTxn[];
+      fallbackUsed = true;
     } else {
       return NextResponse.json({ error: "Only PDF/CSV/XLS/XLSX supported" }, { status: 400 });
     }
@@ -316,8 +312,10 @@ export async function POST(req: Request) {
     if (txns.length === 0) return NextResponse.json({ error: "No transactions parsed from file" }, { status: 400 });
     const totalCredit = txns.filter((t) => t.type === "CREDIT").reduce((s, t) => s + t.amount, 0);
     const totalDebit = txns.filter((t) => t.type === "DEBIT").reduce((s, t) => s + t.amount, 0);
-    const month = statementMonth || format(new Date(txns[0].date), "yyyy-MM");
-    const sortedDates = txns.map((t) => t.date).sort();
+    const sortedDates = txns.map((t) => t.date).filter(Boolean).sort();
+    const month = statementMonth || (sortedDates[0] ? format(new Date(sortedDates[0]!), "yyyy-MM") : format(new Date(), "yyyy-MM"));
+    const dateFrom = sortedDates[0] || "";
+    const dateTo = sortedDates[sortedDates.length - 1] || "";
     const metadata = extractStatementMetadata(rawText, file.name);
     const statementMonthFromMeta = metadata.periodStart ? format(new Date(metadata.periodStart), "yyyy-MM") : month;
     const statementDocument: StatementDocument = {
@@ -383,7 +381,19 @@ export async function POST(req: Request) {
         pageCount: metadata.pageCount,
       },
     };
-    return NextResponse.json({ transactions: txns, summary: { count: txns.length, totalCredit, totalDebit, month }, statementDocument });
+    return NextResponse.json({
+      transactions: txns,
+      summary: {
+        count: txns.length,
+        totalCredit,
+        totalDebit,
+        month,
+        dateFrom,
+        dateTo,
+        net: totalCredit - totalDebit,
+      },
+      statementDocument,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? "Upload failed" }, { status: 400 });
   }

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { isUsableAnthropicApiKey } from "@/lib/anthropic-key";
 import { connectMongo } from "@/lib/mongodb";
 import { getRequestUserId } from "@/lib/request-user";
 import { Transaction } from "@/lib/models/Transaction";
 import { Report } from "@/lib/models/Report";
+import { computeFinancialAudit } from "@/lib/financial-audit";
 
 export async function POST(req: Request) {
   try {
@@ -49,19 +51,93 @@ export async function POST(req: Request) {
       top10Expenses,
     };
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
-    const ai = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1200,
-      system:
-        "You are an expert personal finance auditor. Analyze the following financial data and return a JSON audit report. Return ONLY valid JSON, no markdown, no explanation outside the JSON.\n\nJSON structure required:\n{\n  \"overview\": \"2-3 sentence high-level summary\",\n  \"spendingPatterns\": \"detailed paragraph about spending behavior\",\n  \"riskAssessment\": \"paragraph on financial risks observed\",\n  \"disciplineScore\": 7.5,\n  \"disciplineExplanation\": \"explanation of the score out of 10\",\n  \"recommendations\": [\"actionable rec 1\", \"rec 2\", \"rec 3\", \"rec 4\", \"rec 5\"],\n  \"insights\": [\n    { \"type\": \"warning\", \"title\": \"High food spending\", \"description\": \"detail\" },\n    { \"type\": \"success\", \"title\": \"Positive savings rate\", \"description\": \"detail\" },\n    { \"type\": \"info\", \"title\": \"Observation\", \"description\": \"detail\" }\n  ]\n}",
-      messages: [{ role: "user", content: JSON.stringify(financialSummary) }],
+    const txnsForAudit = (txns as { amount: number; type: string; category?: string; date: string; month: string; description: string }[]);
+    const financialAudit = computeFinancialAudit(txnsForAudit, {
+      totalIncome: financialSummary.totalIncome,
+      totalExpenses: financialSummary.totalExpenses,
+      netPosition: financialSummary.netPosition,
+      savingsRate: financialSummary.savingsRate,
+      topCategory: financialSummary.topCategory,
+      categoryBreakdown: financialSummary.categoryBreakdown,
+      monthlyTrends: financialSummary.monthlyTrends,
     });
-    const raw = ai.content.map((c: any) => ("text" in c ? c.text : "")).join("");
-    const start = raw.indexOf("{");
-    const end = raw.lastIndexOf("}");
-    const parsed = JSON.parse(raw.slice(start, end + 1));
-    const content = { ...parsed, ...financialSummary };
+
+    const pack = { financialSummary, financialAudit, note: "The financialAudit block is pre-computed. Align your analysis with it and expand with narrative." };
+    const systemPrompt = `You are a certified-style personal finance analyst. The client received account activity after they uploaded and confirmed bank/CSV statements. Use the pre-computed "financialAudit" and "financialSummary" to produce a defensible report.
+
+Return ONLY valid JSON, no markdown fences, no text outside the JSON.
+
+Required JSON structure:
+{
+  "executiveSummary": "2-3 sentences: overall financial health and the main takeaways",
+  "financialStatus": { "narrative": "paragraph: income vs expenses, runway feel, and stability", "strengths": ["..."], "weaknesses": ["..."] },
+  "auditFindings": [
+    { "severity": "low|medium|high", "area": "e.g. spending concentration", "finding": "clear statement", "evidence": "refer to numbers/categories" }
+  ],
+  "detailedReconciliation": "Connect uploaded transaction patterns to: savings margin, top categories, and any red flags. Mention if outflows look concentrated or lumpy.",
+  "overview": "2-3 sentence high-level (may overlap with executive summary)",
+  "spendingPatterns": "paragraph on category and timing behavior",
+  "riskAssessment": "paragraph: liquidity, overspending, and volatility",
+  "disciplineScore": 7.5,
+  "disciplineExplanation": "why that score 0-10, tied to the audit",
+  "recommendations": ["5 actionable items"],
+  "insights": [ { "type": "warning|success|info", "title": "string", "description": "string" } ]
+}
+
+Align disciplineScore and insights with financialAudit.healthScore and financialAudit.flags where appropriate.`;
+
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
+    let parsed: Record<string, unknown> = {};
+    try {
+      if (!isUsableAnthropicApiKey(process.env.ANTHROPIC_API_KEY)) {
+        throw new Error("ANTHROPIC_API_KEY is not set");
+      }
+      const ai = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 2200,
+        system: systemPrompt,
+        messages: [{ role: "user", content: JSON.stringify(pack) }],
+      });
+      const raw = ai.content.map((c: any) => ("text" in c ? c.text : "")).join("");
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if (start < 0 || end <= start) {
+        throw new Error("Model did not return JSON");
+      }
+      parsed = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+    } catch {
+      parsed = {
+        executiveSummary: "Automated report (AI step skipped or unavailable). The metrics below are from your uploaded transactions.",
+        financialStatus: {
+          narrative: financialAudit.summaryBullets.join(" "),
+          strengths: netPosition >= 0 ? ["Inflows met or exceeded outflows in the selected data."] : [],
+          weaknesses: netPosition < 0 ? ["Net flow is negative for this period."] : [],
+        },
+        auditFindings: financialAudit.flags.map((f) => ({
+          severity: f.level === "critical" ? "high" : f.level === "warning" ? "medium" : "low",
+          area: f.code,
+          finding: f.message,
+          evidence: "Rule-based check on your transactions.",
+        })),
+        detailedReconciliation: "Review category mix and month-by-month changes in the dashboard. Generate again after setting ANTHROPIC_API_KEY for a full AI narrative.",
+        overview: financialAudit.summaryBullets[0] || "Not enough data.",
+        spendingPatterns: `Top category: ${topCategory}. See categoryBreakdown in metrics.`,
+        riskAssessment: "See financialAudit.flags for structured risks.",
+        disciplineScore: financialAudit.healthScore / 10,
+        disciplineExplanation: "Scaled from the automated health score 0-100 below.",
+        recommendations: [
+          "Reconcile the largest debit categories and trim discretionary spend if needed.",
+          "Aim to keep a positive monthly net and build an emergency buffer.",
+        ],
+        insights: financialAudit.flags.map((f) => ({
+          type: f.level === "critical" ? "warning" : f.level,
+          title: f.code,
+          description: f.message,
+        })),
+      };
+    }
+
+    const content = { ...parsed, ...financialSummary, financialAudit } as Record<string, unknown>;
     const report = await Report.create({
       userId,
       accountIds: (accountIds || []).map(String),

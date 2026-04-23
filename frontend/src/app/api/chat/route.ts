@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { isUsableAnthropicApiKey } from "@/lib/anthropic-key";
 import { connectMongo } from "@/lib/mongodb";
 import { getRequestUserId } from "@/lib/request-user";
 import { Conversation } from "@/lib/models/Conversation";
@@ -43,7 +44,16 @@ export async function POST(req: Request) {
       (conversationId ? await Conversation.findOne({ _id: conversationId, userId }) : null) ||
       (await Conversation.create({ userId, title: message.slice(0, 40), messages: [] }));
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
+    if (!isUsableAnthropicApiKey(process.env.ANTHROPIC_API_KEY)) {
+      return NextResponse.json(
+        {
+          error:
+            "Add a valid Anthropic API key to the server .env (ANTHROPIC_API_KEY=sk-ant-...) and restart. Placeholders like replace-me are ignored.",
+        },
+        { status: 503 }
+      );
+    }
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1000,
