@@ -1,0 +1,9 @@
+# https://render.com/docs/blueprint-spec
+# Web service: Next.js in ./frontend (npm workspaces). Use repo root; do not set Start Command to node index.js.
+services:
+  - type: web
+    name: Finance-App
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
