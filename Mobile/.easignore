@@ -1,0 +1,10 @@
+# Shrink EAS upload (monorepo: archive can include repo siblings)
+../frontend/.next
+../**/.next
+../**/dist
+../**/build
+**/node_modules
+.expo
+android/.gradle
+android/build
+ios/Pods

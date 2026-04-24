@@ -1,0 +1,10 @@
+# EAS monorepo upload — exclude heavy local artifacts
+frontend/.next
+**/.next
+**/dist
+**/build
+**/node_modules
+.expo
+Mobile/android/.gradle
+Mobile/android/build
+Mobile/ios/Pods
