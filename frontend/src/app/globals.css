@@ -47,3 +47,25 @@ body {
   background: #2a3f5f;
   border-radius: 999px;
 }
+
+@keyframes vault-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.vault-shimmer {
+  background: linear-gradient(
+    110deg,
+    #182033 0%,
+    #182033 38%,
+    #243552 50%,
+    #182033 62%,
+    #182033 100%
+  );
+  background-size: 200% 100%;
+  animation: vault-shimmer 1.35s ease-in-out infinite;
+}

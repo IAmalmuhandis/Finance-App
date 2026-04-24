@@ -1,7 +1,15 @@
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { connectMongo } from "./mongodb";
 import { User } from "./models/User";
+import { upsertUserFromGoogle } from "./google-user";
+
+const googleConfigured =
+  typeof process.env.GOOGLE_CLIENT_ID === "string" &&
+  process.env.GOOGLE_CLIENT_ID.length > 0 &&
+  typeof process.env.GOOGLE_CLIENT_SECRET === "string" &&
+  process.env.GOOGLE_CLIENT_SECRET.length > 0;
 
 export const authOptions: any = {
   session: { strategy: "jwt" },
@@ -20,15 +28,45 @@ export const authOptions: any = {
         await connectMongo();
         const user = await User.findOne({ email }).lean();
         if (!user) return null;
-        const ok = await bcrypt.compare(password, (user as any).passwordHash);
+        const hash = (user as { passwordHash?: string }).passwordHash;
+        if (!hash) return null;
+        const ok = await bcrypt.compare(password, hash);
         if (!ok) return null;
         return { id: String((user as any)._id), email: (user as any).email, name: (user as any).name };
       },
     }),
+    ...(googleConfigured
+      ? [
+          GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+          }),
+        ]
+      : []),
   ],
   callbacks: {
-    async jwt({ token, user }: any) {
-      if (user) token.id = user.id;
+    async signIn({ user, account }: { user: any; account: any }) {
+      if (account?.provider !== "google" || !user?.email) return true;
+      await connectMongo();
+      const email = String(user.email).toLowerCase();
+      const existing = await User.findOne({ email }).lean();
+      const gid = (existing as { googleId?: string } | null)?.googleId;
+      if (gid && gid !== account.providerAccountId) {
+        return "/?error=google_account";
+      }
+      return true;
+    },
+    async jwt({ token, user, account }: any) {
+      if (account?.provider === "google" && user?.email) {
+        const id = await upsertUserFromGoogle({
+          email: user.email,
+          name: user.name,
+          googleSub: account.providerAccountId,
+        });
+        token.id = id;
+        return token;
+      }
+      if (user?.id) token.id = user.id;
       return token;
     },
     async session({ session, token }: any) {

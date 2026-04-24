@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/TopBar";
+import { UploadSkeleton } from "@/components/PageSkeletons";
 
 export default function UploadPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [accountId, setAccountId] = useState("");
   const [month, setMonth] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -14,10 +16,14 @@ export default function UploadPage() {
   const [statementDocument, setStatementDocument] = useState<any>(null);
 
   useEffect(() => {
-    fetch("/api/accounts").then((r) => r.json()).then((j) => {
-      setAccounts(j.accounts || []);
-      if (j.accounts?.[0]) setAccountId(j.accounts[0].id);
-    });
+    fetch("/api/accounts")
+      .then((r) => r.json())
+      .then((j) => {
+        setAccounts(j.accounts || []);
+        if (j.accounts?.[0]) setAccountId(j.accounts[0].id);
+      })
+      .catch(() => toast.error("Failed to load accounts"))
+      .finally(() => setAccountsLoading(false));
   }, []);
 
   async function submit() {
@@ -48,6 +54,8 @@ export default function UploadPage() {
     setSummary(null);
     setStatementDocument(null);
   }
+
+  if (accountsLoading) return <UploadSkeleton />;
 
   return (
     <div className="p-8">

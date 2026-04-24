@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { TrendingUp, Plus, Edit2, Check, AlertCircle, Save, Trash2 } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
+import { TrackerSkeleton } from "@/components/PageSkeletons";
 
 interface Formula {
   stocks: number;
@@ -60,6 +61,7 @@ export default function TrackerPage() {
     notes: ""
   });
   const [syncNote, setSyncNote] = useState("");
+  const [hydrated, setHydrated] = useState(false);
 
   const initialSyncDone = useRef(false);
   const cloudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,7 +168,10 @@ export default function TrackerPage() {
           setSyncNote("Using data saved in this browser");
         }
       } finally {
-        if (!cancelled) initialSyncDone.current = true;
+        if (!cancelled) {
+          initialSyncDone.current = true;
+          setHydrated(true);
+        }
       }
     })();
     return () => {
@@ -266,6 +271,8 @@ export default function TrackerPage() {
   ];
 
   const ytdStocks = monthlyLog.reduce((acc, curr) => acc + curr.stocks, 0);
+
+  if (!hydrated) return <TrackerSkeleton />;
 
   return (
     <div className="p-4 md:p-8 space-y-8 max-w-5xl mx-auto">

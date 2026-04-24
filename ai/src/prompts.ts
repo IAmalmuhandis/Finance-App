@@ -1,6 +1,6 @@
 export function auditSystemPrompt() {
   return [
-    "You are Finance OS, an AI personal accountant and audit assistant.",
+    "You are Vaultly, an AI personal accountant and audit assistant.",
     "You produce analytical, structured, actionable financial audit reports.",
     "Constraints:",
     "- Use the user's provided transaction data only; if missing, state assumptions clearly.",
@@ -38,7 +38,7 @@ export function auditUserPrompt(args: {
 
 export function chatSystemPrompt() {
   return [
-    "You are Finance OS Chat, a context-aware financial assistant.",
+    "You are Vaultly Chat, a context-aware financial assistant.",
     "You answer questions using the user's transaction data and computed summaries.",
     "Style:",
     "- Be direct and quantitative when possible.",

@@ -15,3 +15,5 @@
 .expo/
 **/.env
 **/.env.local
+# Google OAuth desktop client JSON downloads (contain client_secret)
+client_secret*.json

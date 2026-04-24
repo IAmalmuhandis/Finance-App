@@ -4,6 +4,7 @@ import { Download, Search } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { useDateRange } from "@/components/date-range-context";
 import { toast } from "sonner";
+import { TransactionsSkeleton } from "@/components/PageSkeletons";
 
 export default function TransactionsPage() {
   const { dateRange } = useDateRange();
@@ -12,16 +13,26 @@ export default function TransactionsPage() {
   const [summary, setSummary] = useState<any>({});
   const [search, setSearch] = useState("");
   const [meta, setMeta] = useState<any>({ totalPages: 1, total: 0 });
+  const [initialLoad, setInitialLoad] = useState(true);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/transactions?page=${page}&search=${encodeURIComponent(search)}`);
     const j = await r.json();
-    if (!r.ok) return toast.error("Failed to load transactions");
+    if (!r.ok) {
+      toast.error("Failed to load transactions");
+      setInitialLoad(false);
+      return;
+    }
     setRows(j.transactions || []);
     setSummary(j.summary || {});
     setMeta({ totalPages: j.totalPages || 1, total: j.total || 0 });
+    setInitialLoad(false);
   }, [page, search]);
-  useEffect(() => { load(); }, [load, dateRange]);
+  useEffect(() => {
+    void load();
+  }, [load, dateRange]);
+
+  if (initialLoad) return <TransactionsSkeleton />;
 
   return (
     <div className="p-8">

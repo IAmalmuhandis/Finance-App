@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnvConfig } from "@next/env";
@@ -10,6 +11,31 @@ const thisDir = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.resolve(thisDir, "..");
 loadEnvConfig(monorepoRoot, isDev, undefined, true);
 loadEnvConfig(thisDir, isDev, undefined, true);
+
+/** `.env.local` is gitignored; merge it in production too so `next start` picks up e.g. GOOGLE_CLIENT_ID. */
+function mergeEnvLocal(dir: string) {
+  const filePath = path.join(dir, ".env.local");
+  if (!fs.existsSync(filePath)) return;
+  const raw = fs.readFileSync(filePath, "utf8");
+  for (const line of raw.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq <= 0) continue;
+    const key = t.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    let val = t.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    process.env[key] = val;
+  }
+}
+mergeEnvLocal(monorepoRoot);
+mergeEnvLocal(thisDir);
 
 const nextConfig: NextConfig = {
   // Multiple package-lock files make Next 16 (Turbopack) pick the wrong root; pin both to the workspace

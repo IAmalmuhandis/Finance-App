@@ -26,7 +26,16 @@ export async function POST(req: Request) {
     if (!user) {
       return withCors(NextResponse.json({ error: "Invalid credentials" }, { status: 401 }));
     }
-    const ok = await bcrypt.compare(password, (user as { passwordHash: string }).passwordHash);
+    const hash = (user as { passwordHash?: string }).passwordHash;
+    if (!hash) {
+      return withCors(
+        NextResponse.json(
+          { error: "This account uses Google sign-in. Open the Vaultly app in your browser to sign in with Google." },
+          { status: 401 }
+        )
+      );
+    }
+    const ok = await bcrypt.compare(password, hash);
     if (!ok) {
       return withCors(NextResponse.json({ error: "Invalid credentials" }, { status: 401 }));
     }

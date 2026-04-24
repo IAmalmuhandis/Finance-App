@@ -4,26 +4,32 @@ import ReactMarkdown from "react-markdown";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/TopBar";
+import { ReportsSkeleton } from "@/components/PageSkeletons";
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<any[]>([]);
   const [month, setMonth] = useState("");
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState<any>(null);
 
-  async function load() {
+  async function loadReportsList() {
     const r = await fetch("/api/reports");
     const j = await r.json();
     setReports(j.reports || []);
   }
   useEffect(() => {
-    fetch("/api/accounts").then((r) => r.json()).then((j) => {
-      setAccounts(j.accounts || []);
-      setSelectedAccounts((j.accounts || []).map((a: any) => a.id));
-    });
-    load();
+    Promise.all([fetch("/api/accounts").then((r) => r.json()), fetch("/api/reports").then((r) => r.json())])
+      .then(([accJson, repJson]) => {
+        const list = accJson.accounts || [];
+        setAccounts(list);
+        setSelectedAccounts(list.map((a: any) => a.id));
+        setReports(repJson.reports || []);
+      })
+      .catch(() => toast.error("Failed to load reports"))
+      .finally(() => setInitialLoad(false));
   }, []);
 
   async function generate() {
@@ -39,9 +45,11 @@ export default function ReportsPage() {
       setActive(j.report);
       toast.success("Report generated");
     }
-    await load();
+    await loadReportsList();
     setLoading(false);
   }
+
+  if (initialLoad) return <ReportsSkeleton />;
 
   return (
     <div className="p-8">

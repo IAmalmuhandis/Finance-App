@@ -6,21 +6,43 @@ import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Tooltip, XAxis, YAxi
 import { AlertTriangle, Info, TrendingUp } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { useDateRange } from "@/components/date-range-context";
+import { DashboardSkeleton } from "@/components/PageSkeletons";
 
 const money = (v: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(v);
 
 export default function DashboardPage() {
   const { dateRange } = useDateRange();
   const [data, setData] = useState<any>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    setData(null);
+    setLoadError(false);
     fetch(`/api/dashboard?dateRange=${dateRange}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then(setData)
-      .catch(() => toast.error("Failed to load dashboard"));
+      .catch(() => {
+        setLoadError(true);
+        toast.error("Failed to load dashboard");
+      });
   }, [dateRange]);
 
-  if (!data) return <div className="p-8"><div className="h-80 animate-pulse rounded-xl bg-bg-surface" /></div>;
+  if (!data && !loadError) return <DashboardSkeleton />;
+  if (loadError || !data) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="text-sm text-text-secondary">We couldn&apos;t load your dashboard.</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="rounded-lg border border-border-subtle bg-bg-surface px-4 py-2 text-sm font-medium text-text-primary hover:bg-bg-elevated"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   const s = data.stats;
   const p = data.prevStats;
   const delta = (cur: number, prev: number) => (prev ? ((cur - prev) / prev) * 100 : 0);
@@ -77,18 +99,18 @@ export default function DashboardPage() {
         </Panel>
       </div>
       <div className="mt-4">
-      <Panel title="Cash Flow Trend">
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={data.monthlyChart}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1E2D45" />
-            <XAxis dataKey="month" stroke="#475569" />
-            <YAxis stroke="#475569" />
-            <Tooltip />
-            <Line type="monotone" dataKey="income" stroke="#16a34a" />
-            <Line type="monotone" dataKey="expenses" stroke="#dc2626" />
-          </LineChart>
-        </ResponsiveContainer>
-      </Panel>
+        <Panel title="Cash Flow Trend">
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={data.monthlyChart}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E2D45" />
+              <XAxis dataKey="month" stroke="#475569" />
+              <YAxis stroke="#475569" />
+              <Tooltip />
+              <Line type="monotone" dataKey="income" stroke="#16a34a" />
+              <Line type="monotone" dataKey="expenses" stroke="#dc2626" />
+            </LineChart>
+          </ResponsiveContainer>
+        </Panel>
       </div>
       <div className="mt-4 grid gap-4 xl:grid-cols-5">
         <Panel title="Recent Transactions">
@@ -99,25 +121,26 @@ export default function DashboardPage() {
                 <span className="col-span-2 truncate">{t.description}</span>
                 <span className="truncate rounded bg-bg-input px-2 py-0.5">{t.account?.nickname || "Account"}</span>
                 <span className={t.type === "CREDIT" ? "text-accent-green text-right" : "text-accent-red text-right"}>
-                  {t.type === "DEBIT" ? "-" : ""}{money(t.amount)}
+                  {t.type === "DEBIT" ? "-" : ""}
+                  {money(t.amount)}
                 </span>
               </div>
             ))}
           </div>
         </Panel>
-      <Panel title="Insights & Alerts">
-        <ul className="space-y-2">
-          {(data.insights || []).map((i: any) => (
-            <li key={i.id} className="rounded border bg-white p-3 text-sm">
-              <div className="flex items-center gap-2 font-medium">
-                {i.type === "warning" ? <AlertTriangle size={14} /> : i.type === "success" ? <TrendingUp size={14} /> : <Info size={14} />}
-                {i.title}
-              </div>
-              <div className="text-text-secondary">{i.description || i.detail}</div>
-            </li>
-          ))}
-        </ul>
-      </Panel>
+        <Panel title="Insights & Alerts">
+          <ul className="space-y-2">
+            {(data.insights || []).map((i: any) => (
+              <li key={i.id} className="rounded border bg-white p-3 text-sm">
+                <div className="flex items-center gap-2 font-medium">
+                  {i.type === "warning" ? <AlertTriangle size={14} /> : i.type === "success" ? <TrendingUp size={14} /> : <Info size={14} />}
+                  {i.title}
+                </div>
+                <div className="text-text-secondary">{i.description || i.detail}</div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       </div>
     </div>
   );
@@ -128,10 +151,17 @@ function Card({ title, value, delta, accent }: { title: string; value: string; d
     <div className={`rounded-xl border border-border-subtle border-l-4 bg-bg-surface p-5 ${accent}`}>
       <div className="text-xs uppercase tracking-wide text-text-muted">{title}</div>
       <div className="mt-2 text-3xl font-bold text-text-primary">{value}</div>
-      <div className={`mt-3 text-xs ${delta >= 0 ? "text-accent-green" : "text-accent-red"}`}>{delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}% vs last period</div>
+      <div className={`mt-3 text-xs ${delta >= 0 ? "text-accent-green" : "text-accent-red"}`}>
+        {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}% vs last period
+      </div>
     </div>
   );
 }
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="rounded-xl border border-border-subtle bg-bg-surface p-4 xl:col-span-3"><h2 className="mb-2 text-sm font-medium text-text-secondary">{title}</h2>{children}</div>;
+  return (
+    <div className="rounded-xl border border-border-subtle bg-bg-surface p-4 xl:col-span-3">
+      <h2 className="mb-2 text-sm font-medium text-text-secondary">{title}</h2>
+      {children}
+    </div>
+  );
 }

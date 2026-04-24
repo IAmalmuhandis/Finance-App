@@ -3,34 +3,46 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/TopBar";
+import { AccountsSkeleton } from "@/components/PageSkeletons";
 
 const banks = ["GTBank", "Access Bank", "Zenith Bank", "First Bank", "UBA", "Opay", "Palmpay", "Kuda", "Sterling Bank", "Wema Bank", "Fidelity Bank", "Stanbic IBTC", "Polaris Bank", "Union Bank", "Ecobank"];
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ bankName: "", nickname: "", type: "PERSONAL", last4: "", currency: "NGN", color: "#3B82F6" });
 
   const load = async () => {
-    const r = await fetch("/api/accounts");
-    const j = await r.json();
-    setAccounts(j.accounts || []);
+    try {
+      const r = await fetch("/api/accounts");
+      const j = await r.json();
+      setAccounts(j.accounts || []);
+    } catch {
+      toast.error("Failed to load accounts");
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
   const add = async () => {
     const r = await fetch("/api/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     if (!r.ok) return toast.error("Failed to add account");
     toast.success("Account added");
     setOpen(false);
-    load();
+    void load();
   };
   const del = async (id: string) => {
     const r = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
     if (!r.ok) return toast.error("Delete failed");
     toast.success("Account deleted");
-    load();
+    void load();
   };
+
+  if (loading) return <AccountsSkeleton />;
 
   return (
     <div className="p-8">
