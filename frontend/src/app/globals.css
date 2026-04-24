@@ -14,6 +14,8 @@
   --color-text-primary: #f1f5f9;
   --color-text-secondary: #94a3b8;
   --color-text-muted: #475569;
+  /* System stack: avoids `next/font/google` fetching fonts.googleapis.com at build time (Render/CI-safe) */
+  --font-inter: ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif;
   --font-sans: var(--font-inter);
 }
 

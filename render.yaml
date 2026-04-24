@@ -1,5 +1,11 @@
 # https://render.com/docs/blueprint-spec
-# Web service: Next.js in ./frontend (npm workspaces). Use repo root; do not set Start Command to node index.js.
+#
+# This app is an npm monorepo: keep "Root Directory" EMPTY in the Render UI (or omit rootDir here) so
+# `npm install` and `npm run build` run at the repo root. "next start" in ./frontend needs a
+# prior `next build` (produces ./frontend/.next). Do not set Build to `npm install` only.
+# Do not set Root Directory to "frontend" unless Build is `npm install && npm run build` there
+# and workspace @financeos/* resolution still works (not recommended; use root).
+#
 services:
   - type: web
     name: Finance-App
@@ -7,3 +13,5 @@ services:
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
+    # Use `/` so checks stay 200 if Mongo is not set yet; `/api/health` can return 503 without DB.
+    healthCheckPath: /
