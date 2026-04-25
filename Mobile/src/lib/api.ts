@@ -130,6 +130,40 @@ export async function fetchSocialAuthConfig(
   try {
     const r = await fetchWithTimeout(`${b}/api/auth/social-config`);
     const text = await r.text();
+    const trimmed = (text || "").trim();
+    const looksHtml =
+      trimmed.startsWith("<!DOCTYPE") ||
+      trimmed.startsWith("<html") ||
+      trimmed.includes("<!DOCTYPE html") ||
+      trimmed.includes("data-next-head");
+
+    if (looksHtml) {
+      return {
+        google: false,
+        googleMobile: false,
+        webClientId: null,
+        httpStatus: r.status,
+        fetchError:
+          r.status >= 400
+            ? `This URL returned an error page (HTTP ${r.status}), not the Vaultly API. Fix the server URL or open ${b}/api/auth/social-config in a browser — it should show JSON.`
+            : "This URL returned a web page instead of API JSON. Use your Vaultly app root only (e.g. https://your-domain.com or http://192.168.x.x:3000), with no path after the host unless your deploy uses one.",
+      };
+    }
+
+    if (!r.ok) {
+      return {
+        google: false,
+        googleMobile: false,
+        webClientId: null,
+        httpStatus: r.status,
+        fetchError: messageFromApiBody(
+          text,
+          r.status,
+          `Server returned HTTP ${r.status} for /api/auth/social-config`
+        ),
+      };
+    }
+
     let j = {} as {
       google?: boolean;
       googleMobile?: boolean;
@@ -138,17 +172,15 @@ export async function fetchSocialAuthConfig(
     try {
       j = JSON.parse(text) as typeof j;
     } catch {
-      /* non-JSON (e.g. HTML proxy error) */
-    }
-    if (!r.ok) {
       return {
         google: false,
         googleMobile: false,
         webClientId: null,
         httpStatus: r.status,
-        fetchError: `Server returned HTTP ${r.status} for /api/auth/social-config`,
+        fetchError: "Server returned invalid JSON for /api/auth/social-config. Check the API base URL and Wi-Fi.",
       };
     }
+
     const web =
       typeof j.webClientId === "string" && j.webClientId.trim().length > 0 ? j.webClientId.trim() : null;
     return {
@@ -158,11 +190,16 @@ export async function fetchSocialAuthConfig(
       httpStatus: r.status,
     };
   } catch (e) {
+    const raw = e instanceof Error ? e.message : "Network error";
+    const msg =
+      raw.includes("aborted") || raw.includes("Aborted")
+        ? "Request timed out while loading Google settings — check the server URL and network."
+        : raw;
     return {
       google: false,
       googleMobile: false,
       webClientId: null,
-      fetchError: e instanceof Error ? e.message : "Network error",
+      fetchError: msg,
     };
   }
 }

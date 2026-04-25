@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "../lib/api";
+import { getGoogleWebClientId } from "../lib/google-config";
 
 type AuthState = {
   isReady: boolean;
@@ -123,8 +124,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setApiBaseState(trimmed);
       const social = await api.fetchSocialAuthConfig(trimmed);
-      if (!social.googleMobile && !social.google) {
-        setError("Google sign-in is not enabled on this server (needs GOOGLE_CLIENT_ID and NEXTAUTH_SECRET).");
+      if (social.fetchError) {
+        setError(social.fetchError);
+        return false;
+      }
+      if (!social.googleMobile) {
+        if (social.webClientId) {
+          setError(
+            "Mobile Google sign-in needs NEXTAUTH_SECRET on the Vaultly server (same variable the web app uses)."
+          );
+        } else if (getGoogleWebClientId()) {
+          setError(
+            "The server did not return a Google Web Client ID. Set GOOGLE_CLIENT_ID (or NEXT_PUBLIC_GOOGLE_CLIENT_ID) on the Vaultly server to match the mobile app, then restart the server."
+          );
+        } else {
+          setError("Could not load Google client ID from this server. Check GOOGLE_CLIENT_ID on the server.");
+        }
+        return false;
+      }
+      if (!social.webClientId) {
+        setError(
+          "Could not load Google client ID from this server. Check GOOGLE_CLIENT_ID on the server and try again."
+        );
         return false;
       }
       const health = await api.checkHealth(trimmed);

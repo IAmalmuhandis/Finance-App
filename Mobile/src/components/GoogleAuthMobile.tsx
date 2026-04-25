@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ResponseType } from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import { THEME } from "../theme";
 import { getGoogleWebClientId } from "../lib/google-config";
 import { getGoogleOAuthRedirectUri } from "../lib/google-oauth-redirect";
 import { fetchSocialAuthConfig, getApiBase, setApiBase } from "../lib/api";
+
+function sameGoogleClientId(a: string, b: string): boolean {
+  return a.trim().replace(/\.apps\.googleusercontent\.com$/i, "") === b.trim().replace(/\.apps\.googleusercontent\.com$/i, "");
+}
 
 type Props = {
   disabled: boolean;
@@ -126,11 +131,16 @@ function GoogleAuthMobileInner({
 }: Props & { clientId: string }) {
   const redirectUri = getGoogleOAuthRedirectUri(clientId);
 
-  const [, response, promptAsync] = Google.useIdTokenAuthRequest({
+  /** Native: `useIdTokenAuthRequest` forces auth code + token exchange, which often fails silently. Implicit `id_token` + Expo proxy matches the Web client redirect URI. */
+  const [, response, promptAsync] = Google.useAuthRequest({
+    clientId,
     webClientId: clientId,
-    iosClientId: clientId,
+    /** Same Web client on all platforms so Android does not pick a missing `androidClientId`. */
     androidClientId: clientId,
+    iosClientId: clientId,
+    responseType: ResponseType.IdToken,
     redirectUri,
+    usePKCE: false,
   });
 
   const lastKey = useRef<string | null>(null);
@@ -173,26 +183,71 @@ function GoogleAuthMobileInner({
     }
 
     void (async () => {
-      await onIdToken(idToken);
-      setBusy(false);
+      try {
+        await onIdToken(idToken);
+      } catch {
+        onMessage("Google sign-in failed unexpectedly. Try again.");
+      } finally {
+        setBusy(false);
+      }
     })();
   }, [response, onIdToken, onMessage, setBusy]);
 
   const open = async () => {
     lastKey.current = null;
     onMessage(null);
-    let base = (await getApiBase()).trim().replace(/\/$/, "");
-    const pending = resolveBaseForConfig(pendingBaseUrl);
-    if (!base && pending) {
-      await setApiBase(pending);
-      base = pending;
-    }
-    if (!base) {
-      onMessage("Save your Vaultly server URL first (use the main button above), then try Google.");
-      return;
-    }
     setBusy(true);
-    void promptAsync({ showInRecents: true });
+    let openedOAuth = false;
+    try {
+      let base = (await getApiBase()).trim().replace(/\/$/, "");
+      const pending = resolveBaseForConfig(pendingBaseUrl);
+      if (!base && pending) {
+        await setApiBase(pending);
+        base = pending;
+      }
+      if (!base) {
+        onMessage("Save your Vaultly server URL first (use the main button above), then try Google.");
+        return;
+      }
+      const gate = await fetchSocialAuthConfig(base);
+      if (gate.fetchError) {
+        onMessage(gate.fetchError);
+        return;
+      }
+      if (!gate.googleMobile) {
+        const baked = getGoogleWebClientId();
+        if (gate.webClientId) {
+          onMessage(
+            "This server is not set up for mobile Google yet (set NEXTAUTH_SECRET on the server — the same value the web app uses)."
+          );
+          return;
+        }
+        if (baked) {
+          onMessage(
+            "This Vaultly server did not return a Google Web Client ID. Set GOOGLE_CLIENT_ID (or NEXT_PUBLIC_GOOGLE_CLIENT_ID / AUTH_GOOGLE_ID) in the server's environment to match EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in Mobile/.env, then restart the server."
+          );
+          return;
+        }
+        onMessage(
+          "Could not read Google settings from this server. Check the URL, or add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to Mobile/.env and rebuild."
+        );
+        return;
+      }
+      const baked = getGoogleWebClientId();
+      if (baked && gate.webClientId && !sameGoogleClientId(baked, gate.webClientId)) {
+        onMessage(
+          "The Google Web Client ID on this server does not match the one in this app. Use the same OAuth client in Mobile/.env as on the server, or clear EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to load the ID from the server only."
+        );
+        return;
+      }
+      openedOAuth = true;
+      void promptAsync({ showInRecents: true }).catch(() => {
+        setBusy(false);
+        onMessage("Could not open the Google sign-in page. Try again.");
+      });
+    } finally {
+      if (!openedOAuth) setBusy(false);
+    }
   };
 
   return (

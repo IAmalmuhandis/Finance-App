@@ -8,6 +8,7 @@ try {
 
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = {
+  /** Do not set `owner` here unless it matches the Expo account that owns `extra.eas.projectId` (EAS will error otherwise). Google redirect uses `EXPO_PUBLIC_EXPO_AUTH_PROXY_PATH` or @anonymous/slug. */
   name: "Vaultly",
   slug: "vaultly",
   version: "1.0.0",
