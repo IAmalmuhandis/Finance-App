@@ -60,6 +60,22 @@ function authHeaders(token: string, json = true) {
   return h;
 }
 
+const DEFAULT_FETCH_MS = 28_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit & { timeoutMs?: number } = {}
+): Promise<Response> {
+  const { timeoutMs = DEFAULT_FETCH_MS, ...rest } = init;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...rest, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Prefer API JSON `{ error }` from route handlers; only then treat as HTML. */
 function messageFromApiBody(body: string, status: number, fallback: string): string {
   const t = (body || "").trim();
@@ -78,9 +94,9 @@ function messageFromApiBody(body: string, status: number, fallback: string): str
     /* not JSON */
   }
   if (t.startsWith("<!DOCTYPE") || t.startsWith("<html") || t.includes("<!DOCTYPE html") || t.includes("data-next-head")) {
-    return `Server returned a web page instead of JSON (HTTP ${status}). Set API base to your computer IP:port in sign-in, e.g. http://192.168.x.x:3000 (not "localhost" on a real phone), and ensure the app is running. If this persists, check the PC terminal for the real error.`;
+    return `Server returned a web page instead of JSON (HTTP ${status}). Set API base to your computer IP:port in sign-in, e.g. http://192.168.x.x:3000 (not "localhost" on a phone), and ensure the app is running. If this persists, check the PC terminal for the real error.`;
   }
-  return t.length > 240 ? `${t.slice(0, 240)}…` : t;
+  return t.length > 240 ? `${t.slice(0, 240)}...` : t;
 }
 
 export async function apiRegister(
@@ -90,7 +106,7 @@ export async function apiRegister(
   name?: string
 ): Promise<{ error?: string }> {
   const b = base.replace(/\/$/, "");
-  const r = await fetch(`${b}/api/register`, {
+  const r = await fetchWithTimeout(`${b}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password, name: name?.trim() || undefined }),
@@ -101,13 +117,79 @@ export async function apiRegister(
   return {};
 }
 
+export async function fetchSocialAuthConfig(
+  base: string
+): Promise<{
+  google: boolean;
+  googleMobile: boolean;
+  webClientId: string | null;
+  httpStatus?: number;
+  fetchError?: string;
+}> {
+  const b = base.replace(/\/$/, "");
+  try {
+    const r = await fetchWithTimeout(`${b}/api/auth/social-config`);
+    const text = await r.text();
+    let j = {} as {
+      google?: boolean;
+      googleMobile?: boolean;
+      webClientId?: string | null;
+    };
+    try {
+      j = JSON.parse(text) as typeof j;
+    } catch {
+      /* non-JSON (e.g. HTML proxy error) */
+    }
+    if (!r.ok) {
+      return {
+        google: false,
+        googleMobile: false,
+        webClientId: null,
+        httpStatus: r.status,
+        fetchError: `Server returned HTTP ${r.status} for /api/auth/social-config`,
+      };
+    }
+    const web =
+      typeof j.webClientId === "string" && j.webClientId.trim().length > 0 ? j.webClientId.trim() : null;
+    return {
+      google: Boolean(j.google),
+      googleMobile: Boolean(j.googleMobile),
+      webClientId: web,
+      httpStatus: r.status,
+    };
+  } catch (e) {
+    return {
+      google: false,
+      googleMobile: false,
+      webClientId: null,
+      fetchError: e instanceof Error ? e.message : "Network error",
+    };
+  }
+}
+
+export async function apiGoogleLogin(
+  base: string,
+  idToken: string
+): Promise<{ token?: string; email?: string; error?: string }> {
+  const b = base.replace(/\/$/, "");
+  const r = await fetchWithTimeout(`${b}/api/mobile/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { token?: string; email?: string; error?: string };
+  if (!r.ok) return { error: j.error || "Google sign-in failed" };
+  if (!j.token) return { error: "No token in response" };
+  return { token: j.token, email: j.email };
+}
+
 export async function apiLogin(
   base: string,
   email: string,
   password: string
 ): Promise<{ token?: string; error?: string }> {
   const b = base.replace(/\/$/, "");
-  const r = await fetch(`${b}/api/mobile/login`, {
+  const r = await fetchWithTimeout(`${b}/api/mobile/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -123,7 +205,7 @@ export async function checkHealth(
 ): Promise<{ ok: boolean; message: string; db?: string }> {
   const b = base.replace(/\/$/, "");
   try {
-    const r = await fetch(`${b}/api/health`, { method: "GET" });
+    const r = await fetchWithTimeout(`${b}/api/health`, { method: "GET" });
     const j = (await r.json().catch(() => ({}))) as {
       ok?: boolean;
       error?: string;
@@ -135,10 +217,12 @@ export async function checkHealth(
     if (!r.ok) return { ok: false, message: `HTTP ${r.status}` };
     return { ok: true, message: "Server OK", db: j.db };
   } catch (e) {
-    return {
-      ok: false,
-      message: e instanceof Error ? e.message : "Network error — use your PC LAN IP (not localhost on a phone)",
-    };
+    const raw = e instanceof Error ? e.message : "Network error - use your PC LAN IP (not localhost on a phone)";
+    const msg =
+      raw.includes("aborted") || raw.includes("Aborted")
+        ? "Request timed out - check server URL and Wi-Fi"
+        : raw;
+    return { ok: false, message: msg };
   }
 }
 

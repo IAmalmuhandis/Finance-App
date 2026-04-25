@@ -144,7 +144,10 @@ export default function Home() {
               onClick={() => {
                 setError("");
                 setGoogleBusy(true);
-                void signIn("google", { callbackUrl: "/dashboard" });
+                void signIn("google", { callbackUrl: "/dashboard" }).catch(() => {
+                  setGoogleBusy(false);
+                  setError("Could not start Google sign-in. Check the site URL and auth settings.");
+                });
               }}
               className="mt-3 flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-border-subtle bg-bg-input text-sm font-medium text-text-primary transition hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
             >

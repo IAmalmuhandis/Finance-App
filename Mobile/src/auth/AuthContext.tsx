@@ -7,8 +7,10 @@ type AuthState = {
   email: string;
   apiBase: string;
   error: string | null;
+  signingOut: boolean;
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string, name: string) => Promise<boolean>;
+  signInWithGoogle: (idToken: string) => Promise<boolean>;
   signOut: () => Promise<void>;
 };
 
@@ -20,6 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState("");
   const [apiBase, setApiBaseState] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const resolveBase = useCallback(async (): Promise<string> => {
     const stored = (await api.getApiBase()).trim();
@@ -110,12 +113,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [resolveBase, performLogin]
   );
 
+  const signInWithGoogle = useCallback(
+    async (idToken: string) => {
+      setError(null);
+      const trimmed = await resolveBase();
+      if (!trimmed) {
+        setError("Add your Vaultly server URL first, then try Google again.");
+        return false;
+      }
+      setApiBaseState(trimmed);
+      const social = await api.fetchSocialAuthConfig(trimmed);
+      if (!social.googleMobile && !social.google) {
+        setError("Google sign-in is not enabled on this server (needs GOOGLE_CLIENT_ID and NEXTAUTH_SECRET).");
+        return false;
+      }
+      const health = await api.checkHealth(trimmed);
+      if (!health.ok) {
+        setError(health.message);
+        return false;
+      }
+      const res = await api.apiGoogleLogin(trimmed, idToken);
+      if (res.error || !res.token) {
+        setError(res.error || "Google sign-in failed.");
+        return false;
+      }
+      await api.setToken(res.token);
+      const em = (res.email || "").trim().toLowerCase();
+      await api.setUserEmail(em);
+      setEmail(em);
+      setIsSignedIn(true);
+      setError(null);
+      return true;
+    },
+    [resolveBase]
+  );
+
   const signOut = useCallback(async () => {
-    await api.setToken("");
-    await api.setUserEmail("");
-    setIsSignedIn(false);
-    setEmail("");
-    setError(null);
+    setSigningOut(true);
+    try {
+      await api.setToken("");
+      await api.setUserEmail("");
+      setIsSignedIn(false);
+      setEmail("");
+      setError(null);
+    } finally {
+      setSigningOut(false);
+    }
   }, []);
 
   const value = useMemo<AuthState>(
@@ -125,11 +168,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       apiBase,
       error,
+      signingOut,
       signIn,
       signUp,
+      signInWithGoogle,
       signOut,
     }),
-    [isReady, isSignedIn, email, apiBase, error, signIn, signUp, signOut]
+    [isReady, isSignedIn, email, apiBase, error, signingOut, signIn, signUp, signInWithGoogle, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

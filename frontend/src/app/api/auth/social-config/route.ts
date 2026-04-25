@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
+import { getGoogleOAuthClientSecret, getGoogleOAuthWebClientId } from "@/lib/google-client-id";
 
-/** Lets the client show Google sign-in only when server credentials are configured. */
+/** Lets clients show Google only when credentials exist; exposes public Web client ID for native/Expo OAuth. */
 export async function GET() {
-  const google = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
-  return NextResponse.json({ google });
+  const webClientId = getGoogleOAuthWebClientId();
+  const google = Boolean(webClientId && getGoogleOAuthClientSecret());
+  const googleMobile = Boolean(webClientId && process.env.NEXTAUTH_SECRET);
+  return NextResponse.json({
+    google,
+    googleMobile,
+    webClientId: webClientId || null,
+  });
 }

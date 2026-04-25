@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff, UserPlus } from "lucide-react-native";
 import { useAuth } from "../auth/AuthContext";
+import { GoogleAuthMobile } from "../components/GoogleAuthMobile";
 import { VaultlyMark } from "../components/VaultlyMark";
 import { VAULTLY, THEME } from "../theme";
 import * as api from "../lib/api";
@@ -19,12 +20,14 @@ import * as api from "../lib/api";
 type Mode = "signin" | "signup";
 
 export default function LoginScreen() {
-  const { signIn, signUp, error, email: savedEmail, isReady } = useAuth();
+  const { signIn, signUp, signInWithGoogle, error, email: savedEmail, isReady } = useAuth();
   const [mode, setMode] = useState<Mode>("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleLocalMsg, setGoogleLocalMsg] = useState<string | null>(null);
   const [showServer, setShowServer] = useState(false);
   const [serverUrl, setServerUrl] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -60,6 +63,19 @@ export default function LoginScreen() {
       }
       await api.setApiBase(s);
       setShowServer(false);
+      return;
+    }
+    if (!email.trim()) {
+      setLocalError("Enter your email.");
+      return;
+    }
+    if (!password) {
+      setLocalError("Enter your password.");
+      return;
+    }
+    if (mode === "signup" && password.length < 6) {
+      setLocalError("Password must be at least 6 characters.");
+      return;
     }
     setLoading(true);
     try {
@@ -75,6 +91,8 @@ export default function LoginScreen() {
     }
   };
 
+  const primaryLabel = showServer ? "Save & continue" : mode === "signin" ? "Sign in" : "Create account";
+
   return (
     <SafeAreaView style={styles.wrap} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
@@ -82,145 +100,172 @@ export default function LoginScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.contentWrap}>
-        <View style={styles.brand}>
-          <View style={styles.brandRow}>
-            <View style={styles.brandIcon}>
-              <VaultlyMark size={32} />
-            </View>
-            <View>
-              <Text style={styles.brandName}>{VAULTLY.name}</Text>
-              <Text style={styles.brandTag}>{VAULTLY.tagline}</Text>
-            </View>
-          </View>
-          <Text style={styles.hint}>
-            {mode === "signin"
-              ? "Sign in with the same account you use on the web, or create a new one below."
-              : "Create a Vaultly account. You can use the same email on the web app as well."}
-          </Text>
-        </View>
-
-        <View style={styles.form}>
-          {showServer && (
-            <>
-              <Text style={styles.label}>Vaultly web app URL</Text>
-              <Text style={styles.serverHelp}>
-                Same Wi-Fi as this phone. Use your computer’s LAN address and port (usually :3000), not localhost.
-              </Text>
-              <TextInput
-                style={styles.input}
-                value={serverUrl}
-                onChangeText={setServerUrl}
-                placeholder="http://192.168.x.x:3000"
-                placeholderTextColor={THEME.colors.textMuted}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                editable={!loading}
-              />
-            </>
-          )}
-
-          <View style={styles.modeRow}>
-            <TouchableOpacity
-              style={[styles.modeBtn, mode === "signin" && styles.modeBtnActive]}
-              onPress={() => {
-                setMode("signin");
-                setName("");
-              }}
-              disabled={loading}
-            >
-              <Text style={[styles.modeText, mode === "signin" && styles.modeTextActive]}>Sign in</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeBtn, mode === "signup" && styles.modeBtnActive]}
-              onPress={() => setMode("signup")}
-              disabled={loading}
-            >
-              <View style={styles.modeInner}>
-                <UserPlus size={16} color={mode === "signup" ? THEME.colors.text : THEME.colors.textMuted} />
-                <Text style={[styles.modeText, mode === "signup" && styles.modeTextActive]}>Sign up</Text>
+          <View style={styles.brand}>
+            <View style={styles.brandRow}>
+              <View style={styles.brandIcon}>
+                <VaultlyMark size={32} />
               </View>
-            </TouchableOpacity>
+              <View>
+                <Text style={styles.brandName}>{VAULTLY.name}</Text>
+                <Text style={styles.brandTag}>{VAULTLY.tagline}</Text>
+              </View>
+            </View>
+            <Text style={styles.hint}>
+              {mode === "signin"
+                ? "Sign in with the same account you use on the web, or create a new one below."
+                : "Create a Vaultly account. You can use the same email on the web app as well."}
+            </Text>
           </View>
 
-          {mode === "signup" && (
-            <>
-              <Text style={styles.label}>Name (optional)</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                placeholder="Your name"
-                placeholderTextColor={THEME.colors.textMuted}
-                autoCapitalize="words"
-                editable={!loading}
-              />
-            </>
-          )}
+          <View style={styles.form}>
+            {showServer && (
+              <>
+                <Text style={styles.label}>Vaultly web app URL</Text>
+                <Text style={styles.serverHelp}>
+                  Same Wi-Fi as this phone. Use your computer LAN address and port (usually :3000), not localhost.
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={serverUrl}
+                  onChangeText={setServerUrl}
+                  placeholder="http://192.168.x.x:3000"
+                  placeholderTextColor={THEME.colors.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  editable={!loading && !googleBusy}
+                />
+              </>
+            )}
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={THEME.colors.textMuted}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            editable={!loading}
-          />
+            <View style={styles.modeRow}>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === "signin" && styles.modeBtnActive]}
+                onPress={() => {
+                  setMode("signin");
+                  setName("");
+                }}
+                disabled={loading || googleBusy}
+              >
+                <Text style={[styles.modeText, mode === "signin" && styles.modeTextActive]}>Sign in</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === "signup" && styles.modeBtnActive]}
+                onPress={() => setMode("signup")}
+                disabled={loading || googleBusy}
+              >
+                <View style={styles.modeInner}>
+                  <UserPlus size={16} color={mode === "signup" ? THEME.colors.text : THEME.colors.textMuted} />
+                  <Text style={[styles.modeText, mode === "signup" && styles.modeTextActive]}>Sign up</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
 
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordWrap}>
+            {mode === "signup" && (
+              <>
+                <Text style={styles.label}>Name (optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Your name"
+                  placeholderTextColor={THEME.colors.textMuted}
+                  autoCapitalize="words"
+                  editable={!loading && !googleBusy}
+                />
+              </>
+            )}
+
+            <Text style={styles.label}>Email</Text>
             <TextInput
-              style={styles.passwordInput}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="At least 6 characters"
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
               placeholderTextColor={THEME.colors.textMuted}
-              secureTextEntry={!showPassword}
-              onSubmitEditing={onSubmit}
-              editable={!loading}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!loading && !googleBusy}
             />
+
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.passwordWrap}>
+              <TextInput
+                style={styles.passwordInput}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="At least 6 characters"
+                placeholderTextColor={THEME.colors.textMuted}
+                secureTextEntry={!showPassword}
+                onSubmitEditing={onSubmit}
+                editable={!loading && !googleBusy}
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword((v) => !v)}
+                disabled={loading || googleBusy}
+                hitSlop={10}
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} color={THEME.colors.textSecondary} />
+                ) : (
+                  <Eye size={20} color={THEME.colors.textSecondary} />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {localError ? <Text style={styles.err}>{localError}</Text> : null}
+            {googleLocalMsg ? <Text style={styles.err}>{googleLocalMsg}</Text> : null}
+            {error ? <Text style={styles.err}>{error}</Text> : null}
+
             <TouchableOpacity
-              style={styles.eyeBtn}
-              onPress={() => setShowPassword((v) => !v)}
-              disabled={loading}
-              hitSlop={10}
-              accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              style={[styles.btn, (loading || googleBusy) && { opacity: 0.55 }]}
+              onPress={onSubmit}
+              disabled={loading || googleBusy}
+              activeOpacity={0.9}
             >
-              {showPassword ? (
-                <EyeOff size={20} color={THEME.colors.textSecondary} />
+              {loading ? (
+                <ActivityIndicator color="#fff" />
               ) : (
-                <Eye size={20} color={THEME.colors.textSecondary} />
+                <Text style={styles.btnText}>{primaryLabel}</Text>
               )}
             </TouchableOpacity>
+
+            <GoogleAuthMobile
+              disabled={loading}
+              busy={googleBusy}
+              setBusy={setGoogleBusy}
+              onIdToken={signInWithGoogle}
+              onMessage={setGoogleLocalMsg}
+              pendingBaseUrl={showServer ? serverUrl : ""}
+            />
+
+            <TouchableOpacity
+              style={{ marginTop: 18, alignSelf: "center", paddingVertical: 8 }}
+              onPress={() => {
+                setMode((m) => (m === "signin" ? "signup" : "signin"));
+                setName("");
+                setLocalError(null);
+                setGoogleLocalMsg(null);
+              }}
+              disabled={loading || googleBusy}
+            >
+              <Text style={{ color: THEME.colors.textSecondary, fontSize: 14, textDecorationLine: "underline" }}>
+                {mode === "signin" ? "New user? Register" : "Have an account? Sign in"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {localError ? <Text style={styles.err}>{localError}</Text> : null}
-          {error ? <Text style={styles.err}>{error}</Text> : null}
-
-          <TouchableOpacity
-            style={[styles.btn, loading && { opacity: 0.55 }]}
-            onPress={onSubmit}
-            disabled={loading}
-            activeOpacity={0.9}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>{mode === "signin" ? "Sign in" : "Create account"}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          <View style={styles.busyOverlay} pointerEvents="auto">
-            <ActivityIndicator size="large" color={THEME.colors.primary} />
-            <Text style={styles.busyTitle}>{mode === "signup" ? "Creating your account…" : "Signing you in…"}</Text>
-            <Text style={styles.busySub}>This only takes a moment</Text>
-          </View>
-        ) : null}
+          {loading || googleBusy ? (
+            <View style={styles.busyOverlay} pointerEvents="auto">
+              <ActivityIndicator size="large" color={THEME.colors.primary} />
+              <Text style={styles.busyTitle}>
+                {googleBusy ? "Google sign-in..." : mode === "signup" ? "Creating your account..." : "Signing you in..."}
+              </Text>
+              <Text style={styles.busySub}>This only takes a moment</Text>
+            </View>
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

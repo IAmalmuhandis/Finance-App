@@ -1,5 +1,6 @@
 import React from "react";
 import { View, ActivityIndicator, Text, TouchableOpacity } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StatusBar } from "expo-status-bar";
@@ -16,9 +17,11 @@ import TrackerScreen from "./src/screens/TrackerScreen";
 import TransactionsScreen from "./src/screens/TransactionsScreen";
 import { THEME } from "./src/theme";
 
+WebBrowser.maybeCompleteAuthSession();
+
 const Tab = createBottomTabNavigator();
 
-const buildTabOptions = (signOut: () => void) => ({
+const buildTabOptions = (signOut: () => void, signingOut: boolean) => ({
   headerStyle: {
     backgroundColor: THEME.colors.background,
     borderBottomWidth: 1,
@@ -28,11 +31,16 @@ const buildTabOptions = (signOut: () => void) => ({
   headerTitleStyle: { fontWeight: "600" as const, fontSize: 17 },
   headerRight: () => (
     <TouchableOpacity
-      onPress={signOut}
-      style={{ marginRight: 14, paddingVertical: 6, paddingHorizontal: 4 }}
+      onPress={() => void signOut()}
+      disabled={signingOut}
+      style={{ marginRight: 14, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72, alignItems: "flex-end" }}
       hitSlop={8}
     >
-      <Text style={{ color: THEME.colors.textSecondary, fontSize: 14 }}>Sign out</Text>
+      {signingOut ? (
+        <ActivityIndicator size="small" color={THEME.colors.textSecondary} />
+      ) : (
+        <Text style={{ color: THEME.colors.textSecondary, fontSize: 14 }}>Sign out</Text>
+      )}
     </TouchableOpacity>
   ),
   tabBarStyle: {
@@ -47,11 +55,11 @@ const buildTabOptions = (signOut: () => void) => ({
 });
 
 function MainTabs() {
-  const { signOut } = useAuth();
+  const { signOut, signingOut } = useAuth();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => {
-        const base = buildTabOptions(signOut);
+        const base = buildTabOptions(signOut, signingOut);
         return {
           ...base,
           headerTitle: route.name === "Tracker" ? "Formula" : route.name,

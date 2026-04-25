@@ -1,15 +1,14 @@
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
+import { getGoogleOAuthClientSecret, getGoogleOAuthWebClientId } from "./google-client-id";
 import { connectMongo } from "./mongodb";
 import { User } from "./models/User";
 import { upsertUserFromGoogle } from "./google-user";
 
-const googleConfigured =
-  typeof process.env.GOOGLE_CLIENT_ID === "string" &&
-  process.env.GOOGLE_CLIENT_ID.length > 0 &&
-  typeof process.env.GOOGLE_CLIENT_SECRET === "string" &&
-  process.env.GOOGLE_CLIENT_SECRET.length > 0;
+const googleWebClientId = getGoogleOAuthWebClientId();
+const googleClientSecret = getGoogleOAuthClientSecret();
+const googleConfigured = googleWebClientId.length > 0 && googleClientSecret.length > 0;
 
 export const authOptions: any = {
   session: { strategy: "jwt" },
@@ -38,8 +37,8 @@ export const authOptions: any = {
     ...(googleConfigured
       ? [
           GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID!,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+            clientId: googleWebClientId,
+            clientSecret: googleClientSecret,
           }),
         ]
       : []),

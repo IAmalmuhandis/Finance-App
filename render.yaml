@@ -6,8 +6,9 @@
 # Do not set Root Directory to "frontend" unless Build is `npm install && npm run build` there
 # and workspace @financeos/* resolution still works (not recommended; use root).
 #
-# Optional Google sign-in: in the Render dashboard add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-# (OAuth Web client). Authorized redirect URI must be: {your NEXTAUTH_URL}/api/auth/callback/google
+# Google sign-in: set NEXTAUTH_URL to your public https URL (no trailing slash), NEXTAUTH_SECRET,
+# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET. In Google Cloud → OAuth Web client, add authorized redirect:
+# {NEXTAUTH_URL}/api/auth/callback/google
 #
 services:
   - type: web
