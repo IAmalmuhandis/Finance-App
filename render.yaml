@@ -1,21 +1,32 @@
 # https://render.com/docs/blueprint-spec
 #
-# This app is an npm monorepo: keep "Root Directory" EMPTY in the Render UI (or omit rootDir here) so
-# `npm install` and `npm run build` run at the repo root. "next start" in ./frontend needs a
-# prior `next build` (produces ./frontend/.next). Do not set Build to `npm install` only.
-# Do not set Root Directory to "frontend" unless Build is `npm install && npm run build` there
-# and workspace @financeos/* resolution still works (not recommended; use root).
+# Required env vars — set these in the Render dashboard (Settings → Environment):
+#   DATABASE_URL   — MongoDB Atlas SRV URI
+#   NEXTAUTH_URL   — your Render service URL, e.g. https://arzo.onrender.com
+#   NEXTAUTH_SECRET — long random string (openssl rand -hex 32)
+#   GOOGLE_CLIENT_ID     — Google OAuth Web client ID (optional, enables Google sign-in)
+#   GOOGLE_CLIENT_SECRET — Google OAuth Web client secret (optional)
 #
-# Google sign-in: set NEXTAUTH_URL to your public https URL (no trailing slash), NEXTAUTH_SECRET,
-# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET. In Google Cloud → OAuth Web client, add authorized redirect:
-# {NEXTAUTH_URL}/api/auth/callback/google
+# After deploying, set EXPO_PUBLIC_API_BASE_URL in Mobile/.env to the NEXTAUTH_URL above.
 #
 services:
   - type: web
-    name: Finance-App
+    name: Arzo
     runtime: node
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
-    # Use `/` so checks stay 200 if Mongo is not set yet; `/api/health` can return 503 without DB.
-    healthCheckPath: /
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false

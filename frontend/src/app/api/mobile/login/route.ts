@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     if (!hash) {
       return withCors(
         NextResponse.json(
-          { error: "This account uses Google sign-in. Open the Vaultly app in your browser to sign in with Google." },
+          { error: "This account uses Google sign-in. Use Google on mobile or sign in on the web." },
           { status: 401 }
         )
       );
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     }
     const id = String((user as { _id: unknown })._id);
     const token = createMobileAccessToken(id, secret);
-    return withCors(NextResponse.json({ token }));
+    return withCors(NextResponse.json({ token, email }));
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Login failed";
     return withCors(NextResponse.json({ error: message }, { status: 500 }));

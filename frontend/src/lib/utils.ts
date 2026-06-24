@@ -9,10 +9,6 @@ export function ym(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function fmtMoney(value: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
+export function fmtNaira(value: number) {
+  return `₦${value.toLocaleString("en-NG")}`;
 }

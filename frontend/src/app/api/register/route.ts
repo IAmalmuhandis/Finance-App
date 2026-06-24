@@ -3,7 +3,6 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { connectMongo } from "@/lib/mongodb";
 import { User } from "@/lib/models/User";
-import { Account } from "@/lib/models/Account";
 
 const Body = z.object({
   email: z.string().email(),
@@ -24,14 +23,6 @@ export async function POST(req: Request) {
       email,
       name: body.name ?? null,
       passwordHash,
-    });
-    await Account.create({
-      userId: String(user._id),
-      bankName: "Demo Bank",
-      nickname: "Primary Account",
-      type: "PERSONAL",
-      currency: "NGN",
-      color: "#3B82F6",
     });
     return NextResponse.json({ user: { id: String(user._id), email: user.email, name: user.name } });
   } catch (e: any) {

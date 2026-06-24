@@ -4,6 +4,7 @@ export function getGoogleOAuthWebClientId(): string {
     process.env.GOOGLE_CLIENT_ID,
     process.env.AUTH_GOOGLE_ID,
     process.env.GOOGLE_OAUTH_CLIENT_ID,
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
   ];
   for (const c of candidates) {
     const t = (c || "").trim();

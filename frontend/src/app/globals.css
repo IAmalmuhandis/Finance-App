@@ -1,37 +1,52 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg-app: #080d1a;
-  --color-bg-surface: #0f1624;
-  --color-bg-elevated: #182033;
-  --color-bg-input: #0d1220;
-  --color-border-subtle: #1e2d45;
-  --color-border-strong: #2a3f5f;
-  --color-accent-blue: #3b82f6;
-  --color-accent-green: #10b981;
-  --color-accent-red: #ef4444;
-  --color-accent-amber: #f59e0b;
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #475569;
-  /* System stack: avoids `next/font/google` fetching fonts.googleapis.com at build time (Render/CI-safe) */
-  --font-inter: ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif;
-  --font-sans: var(--font-inter);
+  --color-bg-app: #f6f4ee;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-bg-input: #ffffff;
+  --color-bg-sidebar: #082e27;
+  --color-border-subtle: #e6e1d5;
+  --color-border-strong: #e6e1d5;
+  --color-jade: #0c4a3e;
+  --color-jade-deep: #082e27;
+  --color-gold: #c9a24b;
+  --color-gold-soft: #eadfbe;
+  --color-accent-green: #0c4a3e;
+  --color-accent-blue: #0c4a3e;
+  --color-accent-gold: #c9a24b;
+  --color-accent-positive: #2e7d5b;
+  --color-accent-red: #b4543a;
+  --color-accent-amber: #c9a24b;
+  --color-text-primary: #11201b;
+  --color-text-secondary: #5b6b64;
+  --color-text-muted: #5b6b64;
+  --color-text-on-jade: #f6f4ee;
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 html,
 body {
-  background: #080d1a;
-  color: #f1f5f9;
+  background: #f6f4ee;
+  color: #11201b;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 *::selection {
-  background: rgb(59 130 246 / 30%);
+  background: rgb(201 162 75 / 25%);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a3f5f #0f1624;
+  scrollbar-color: #e6e1d5 #f6f4ee;
 }
 
 *::-webkit-scrollbar {
@@ -40,32 +55,20 @@ body {
 }
 
 *::-webkit-scrollbar-track {
-  background: #0f1624;
+  background: #f6f4ee;
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #2a3f5f;
+  background: #e6e1d5;
   border-radius: 999px;
 }
 
-@keyframes vault-shimmer {
-  0% {
-    background-position: 100% 0;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
-  100% {
-    background-position: -100% 0;
-  }
-}
-
-.vault-shimmer {
-  background: linear-gradient(
-    110deg,
-    #182033 0%,
-    #182033 38%,
-    #243552 50%,
-    #182033 62%,
-    #182033 100%
-  );
-  background-size: 200% 100%;
-  animation: vault-shimmer 1.35s ease-in-out infinite;
 }

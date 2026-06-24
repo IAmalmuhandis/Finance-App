@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
-export default function AppIndex() {
-  redirect("/dashboard");
+
+export default function AppIndexPage() {
+  redirect("/calculator");
 }

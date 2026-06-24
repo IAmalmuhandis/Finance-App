@@ -1,21 +1,34 @@
-export const VAULTLY = {
-  name: "Vaultly",
-  tagline: "Your money, in focus",
-};
+import { ARZO, COLORS, RADIUS } from "./lib/brand";
+
+export { ARZO };
 
 export const THEME = {
   colors: {
-    background: "#080D1A",
-    surface: "#0F1624",
-    elevated: "#182033",
-    input: "#0D1220",
-    border: "#1E2D45",
-    primary: "#3B82F6",
-    accentGreen: "#10B981",
-    accentRed: "#EF4444",
-    accentAmber: "#F59E0B",
-    text: "#F1F5F9",
-    textSecondary: "#94A3B8",
-    textMuted: "#475569",
+    background: COLORS.ivory,
+    surface: COLORS.cloud,
+    elevated: COLORS.cloud,
+    input: COLORS.cloud,
+    sidebar: COLORS.jadeDeep,
+    border: COLORS.line,
+    primary: COLORS.jade,
+    jadeDeep: COLORS.jadeDeep,
+    gold: COLORS.gold,
+    goldSoft: COLORS.goldSoft,
+    accentPositive: COLORS.positive,
+    accentAlert: COLORS.alert,
+    text: COLORS.ink,
+    textSecondary: COLORS.slate,
+    textMuted: COLORS.slate,
+    textOnJade: COLORS.ivory,
+    mutedOnJade: COLORS.mutedOnJade,
+    lineOnJade: COLORS.lineOnJade,
+  },
+  radius: RADIUS,
+  fonts: {
+    display: "Fraunces_600SemiBold",
+    displayRegular: "Fraunces_500Medium",
+    ui: "Inter_400Regular",
+    uiMedium: "Inter_500Medium",
+    uiSemibold: "Inter_600SemiBold",
   },
 } as const;

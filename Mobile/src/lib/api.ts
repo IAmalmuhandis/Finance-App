@@ -1,32 +1,46 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 
-/** URL from `EXPO_PUBLIC_API_BASE_URL` baked into the build via app.config `extra.apiBaseUrl`. */
 export function getConfiguredApiBase(): string {
   const extra = Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined;
   return (extra?.apiBaseUrl || "").trim().replace(/\/$/, "");
 }
 
-const KEY_API = "vaultly_api_base";
-const KEY_TOKEN = "vaultly_token";
-const KEY_EMAIL = "vaultly_user_email";
-const LEGACY_API = "tracker_api_base_url";
-const LEGACY_TOKEN = "tracker_auth_token";
+const KEY_API = "arzo_api_base";
+const KEY_TOKEN = "arzo_token";
+const KEY_EMAIL = "arzo_user_email";
+const LEGACY_KEYS = {
+  api: ["vaultly_api_base", "tracker_api_base_url"],
+  token: ["vaultly_token", "tracker_auth_token"],
+  email: ["vaultly_user_email"],
+};
 
 async function migrateLegacy() {
-  const a = await AsyncStorage.getItem(LEGACY_API);
-  const t = await AsyncStorage.getItem(LEGACY_TOKEN);
-  if (a && !(await AsyncStorage.getItem(KEY_API))) await AsyncStorage.setItem(KEY_API, a);
-  if (t && !(await AsyncStorage.getItem(KEY_TOKEN))) await AsyncStorage.setItem(KEY_TOKEN, t);
+  for (const k of LEGACY_KEYS.api) {
+    const v = await AsyncStorage.getItem(k);
+    if (v && !(await AsyncStorage.getItem(KEY_API))) await AsyncStorage.setItem(KEY_API, v);
+  }
+  for (const k of LEGACY_KEYS.token) {
+    const v = await AsyncStorage.getItem(k);
+    if (v && !(await AsyncStorage.getItem(KEY_TOKEN))) await AsyncStorage.setItem(KEY_TOKEN, v);
+  }
+  for (const k of LEGACY_KEYS.email) {
+    const v = await AsyncStorage.getItem(k);
+    if (v && !(await AsyncStorage.getItem(KEY_EMAIL))) await AsyncStorage.setItem(KEY_EMAIL, v);
+  }
 }
 
 export async function getApiBase(): Promise<string> {
   await migrateLegacy();
+  const fromConfig = getConfiguredApiBase();
   const fromStore = ((await AsyncStorage.getItem(KEY_API)) || "").trim().replace(/\/$/, "");
-  if (fromStore) {
-    return fromStore;
+  // Build-time .env wins so Mobile/.env changes apply after restarting Expo.
+  if (fromConfig) {
+    if (fromConfig !== fromStore) await AsyncStorage.setItem(KEY_API, fromConfig);
+    return fromConfig;
   }
-  return getConfiguredApiBase();
+  if (fromStore) return fromStore;
+  return "";
 }
 
 export async function setApiBase(url: string) {
@@ -54,18 +68,16 @@ export async function setUserEmail(email: string) {
   else await AsyncStorage.removeItem(KEY_EMAIL);
 }
 
-function authHeaders(token: string, json = true) {
-  const h: Record<string, string> = { Authorization: `Bearer ${token}` };
-  if (json) h["Content-Type"] = "application/json";
-  return h;
+function authHeaders(token: string) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
 }
 
 const DEFAULT_FETCH_MS = 28_000;
 
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit & { timeoutMs?: number } = {}
-): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
   const { timeoutMs = DEFAULT_FETCH_MS, ...rest } = init;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -76,25 +88,18 @@ async function fetchWithTimeout(
   }
 }
 
-/** Prefer API JSON `{ error }` from route handlers; only then treat as HTML. */
 function messageFromApiBody(body: string, status: number, fallback: string): string {
   const t = (body || "").trim();
-  if (!t) {
-    return fallback;
-  }
+  if (!t) return fallback;
   try {
     const j = JSON.parse(t) as { error?: string; message?: string };
-    if (typeof j.error === "string" && j.error.length) {
-      return j.error;
-    }
-    if (typeof j.message === "string" && j.message.length) {
-      return j.message;
-    }
+    if (typeof j.error === "string" && j.error.length) return j.error;
+    if (typeof j.message === "string" && j.message.length) return j.message;
   } catch {
-    /* not JSON */
+    /* */
   }
-  if (t.startsWith("<!DOCTYPE") || t.startsWith("<html") || t.includes("<!DOCTYPE html") || t.includes("data-next-head")) {
-    return `Server returned a web page instead of JSON (HTTP ${status}). Set API base to your computer IP:port in sign-in, e.g. http://192.168.x.x:3000 (not "localhost" on a phone), and ensure the app is running. If this persists, check the PC terminal for the real error.`;
+  if (t.startsWith("<!DOCTYPE") || t.startsWith("<html") || t.includes("data-next-head")) {
+    return `Server returned a web page instead of JSON (HTTP ${status}). Use your Arzo server URL, e.g. http://192.168.x.x:3000 on the same Wi-Fi.`;
   }
   return t.length > 240 ? `${t.slice(0, 240)}...` : t;
 }
@@ -117,15 +122,7 @@ export async function apiRegister(
   return {};
 }
 
-export async function fetchSocialAuthConfig(
-  base: string
-): Promise<{
-  google: boolean;
-  googleMobile: boolean;
-  webClientId: string | null;
-  httpStatus?: number;
-  fetchError?: string;
-}> {
+export async function fetchSocialAuthConfig(base: string) {
   const b = base.replace(/\/$/, "");
   try {
     const r = await fetchWithTimeout(`${b}/api/auth/social-config`);
@@ -134,19 +131,15 @@ export async function fetchSocialAuthConfig(
     const looksHtml =
       trimmed.startsWith("<!DOCTYPE") ||
       trimmed.startsWith("<html") ||
-      trimmed.includes("<!DOCTYPE html") ||
       trimmed.includes("data-next-head");
 
     if (looksHtml) {
       return {
         google: false,
         googleMobile: false,
-        webClientId: null,
+        webClientId: null as string | null,
         httpStatus: r.status,
-        fetchError:
-          r.status >= 400
-            ? `This URL returned an error page (HTTP ${r.status}), not the Vaultly API. Fix the server URL or open ${b}/api/auth/social-config in a browser — it should show JSON.`
-            : "This URL returned a web page instead of API JSON. Use your Vaultly app root only (e.g. https://your-domain.com or http://192.168.x.x:3000), with no path after the host unless your deploy uses one.",
+        fetchError: `This URL returned HTML, not the Arzo API. Open ${b}/api/auth/social-config in a browser — it should show JSON.`,
       };
     }
 
@@ -154,33 +147,13 @@ export async function fetchSocialAuthConfig(
       return {
         google: false,
         googleMobile: false,
-        webClientId: null,
+        webClientId: null as string | null,
         httpStatus: r.status,
-        fetchError: messageFromApiBody(
-          text,
-          r.status,
-          `Server returned HTTP ${r.status} for /api/auth/social-config`
-        ),
+        fetchError: messageFromApiBody(text, r.status, `HTTP ${r.status}`),
       };
     }
 
-    let j = {} as {
-      google?: boolean;
-      googleMobile?: boolean;
-      webClientId?: string | null;
-    };
-    try {
-      j = JSON.parse(text) as typeof j;
-    } catch {
-      return {
-        google: false,
-        googleMobile: false,
-        webClientId: null,
-        httpStatus: r.status,
-        fetchError: "Server returned invalid JSON for /api/auth/social-config. Check the API base URL and Wi-Fi.",
-      };
-    }
-
+    const j = JSON.parse(text) as { google?: boolean; googleMobile?: boolean; webClientId?: string | null };
     const web =
       typeof j.webClientId === "string" && j.webClientId.trim().length > 0 ? j.webClientId.trim() : null;
     return {
@@ -191,15 +164,11 @@ export async function fetchSocialAuthConfig(
     };
   } catch (e) {
     const raw = e instanceof Error ? e.message : "Network error";
-    const msg =
-      raw.includes("aborted") || raw.includes("Aborted")
-        ? "Request timed out while loading Google settings — check the server URL and network."
-        : raw;
     return {
       google: false,
       googleMobile: false,
-      webClientId: null,
-      fetchError: msg,
+      webClientId: null as string | null,
+      fetchError: raw.includes("aborted") ? "Request timed out — check server URL and Wi-Fi." : raw,
     };
   }
 }
@@ -224,263 +193,105 @@ export async function apiLogin(
   base: string,
   email: string,
   password: string
-): Promise<{ token?: string; error?: string }> {
+): Promise<{ token?: string; email?: string; error?: string }> {
   const b = base.replace(/\/$/, "");
   const r = await fetchWithTimeout(`${b}/api/mobile/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  const j = (await r.json().catch(() => ({}))) as { token?: string; error?: string };
+  const j = (await r.json().catch(() => ({}))) as { token?: string; email?: string; error?: string };
   if (!r.ok) return { error: j.error || "Sign in failed" };
   if (!j.token) return { error: "No token in response" };
-  return { token: j.token };
+  return { token: j.token, email: j.email };
 }
 
-export async function checkHealth(
-  base: string
-): Promise<{ ok: boolean; message: string; db?: string }> {
+export async function checkHealth(base: string): Promise<{ ok: boolean; message: string }> {
   const b = base.replace(/\/$/, "");
   try {
     const r = await fetchWithTimeout(`${b}/api/health`, { method: "GET" });
-    const j = (await r.json().catch(() => ({}))) as {
-      ok?: boolean;
-      error?: string;
-      db?: string;
-    };
-    if (r.status === 503) {
-      return { ok: false, message: j.error || "Server or database not ready", db: j.db };
-    }
+    const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (r.status === 503) return { ok: false, message: j.error || "Server or database not ready" };
     if (!r.ok) return { ok: false, message: `HTTP ${r.status}` };
-    return { ok: true, message: "Server OK", db: j.db };
+    return { ok: true, message: "Server OK" };
   } catch (e) {
-    const raw = e instanceof Error ? e.message : "Network error - use your PC LAN IP (not localhost on a phone)";
-    const msg =
-      raw.includes("aborted") || raw.includes("Aborted")
-        ? "Request timed out - check server URL and Wi-Fi"
-        : raw;
-    return { ok: false, message: msg };
-  }
-}
-
-// --- API calls (authenticated) ---
-
-export async function fetchJson<T>(path: string, init?: RequestInit): Promise<{ data?: T; error?: string; status: number }> {
-  const base = await getApiBase();
-  const token = await getToken();
-  if (!base || !token) {
-    return { status: 401, error: "Not signed in (set server URL and log in again)" };
-  }
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-  const r = await fetch(url, {
-    ...init,
-    headers: {
-      ...authHeaders(token),
-      ...((init?.headers as Record<string, string>) || {}),
-    },
-  });
-  const text = await r.text();
-  if (r.status === 401) {
-    return { status: 401, error: "Unauthorized" };
-  }
-  if (!r.ok) {
+    const raw = e instanceof Error ? e.message : "Network error";
     return {
-      status: r.status,
-      error: messageFromApiBody(text, r.status, r.statusText || "Request failed"),
-    };
-  }
-  try {
-    const data = JSON.parse(text) as T;
-    return { status: r.status, data };
-  } catch {
-    return {
-      status: r.status,
-      error: messageFromApiBody(text, r.status, "Invalid JSON from server"),
+      ok: false,
+      message: raw.includes("aborted")
+        ? "Request timed out — check server URL and Wi-Fi"
+        : "Cannot reach server — use your PC LAN IP (not localhost on a phone)",
     };
   }
 }
 
-export type DashboardResponse = {
-  stats: { totalIncome: number; totalExpenses: number; netPosition: number; savingsRate: number };
-  prevStats?: { totalIncome: number; totalExpenses: number; netPosition: number; savingsRate: number };
-  monthlyChart: { month: string; income: number; expenses: number }[];
-  categoryChart: { category: string; amount: number }[];
-  recentTransactions: unknown[];
-  insights?: string[];
-};
-
-export function fetchDashboard(dateRange = "thisMonth") {
-  return fetchJson<DashboardResponse>(`/api/dashboard?dateRange=${encodeURIComponent(dateRange)}`);
-}
-
-export type TransactionRow = {
-  _id: string;
-  amount: number;
-  date: string;
-  description: string;
-  type: string;
-  category?: string;
-};
-
-export type TransactionsResponse = {
-  transactions: TransactionRow[];
-  total: number;
-  page: number;
-  totalPages: number;
-  summary: { totalCredit: number; totalDebit: number; net: number };
-};
-
-export function fetchTransactions(page = 1, search = "") {
-  return fetchJson<TransactionsResponse>(
-    `/api/transactions?page=${page}&search=${encodeURIComponent(search)}&limit=25`
-  );
-}
-
-// ---- Tracker (Formula) ----
-
-export type TrackerPayload = {
-  income: number;
-  formula: { stocks: number; emergency: number; obligations: number; food: number; flex: number };
-  checkins: unknown[];
-  monthlyLog: unknown[];
-  persisted?: boolean;
-};
-
-export async function fetchTrackerData(): Promise<TrackerPayload | null> {
-  const base = await getApiBase();
-  const token = await getToken();
-  if (!base || !token) return null;
-  const r = await fetch(`${base}/api/tracker`, { headers: authHeaders(token) });
-  const text = await r.text();
-  if (!r.ok) return null;
-  try {
-    return JSON.parse(text) as TrackerPayload;
-  } catch {
-    return null;
-  }
-}
-
-export async function putTrackerData(body: Omit<TrackerPayload, "persisted">) {
-  const base = await getApiBase();
-  const token = await getToken();
-  if (!base || !token) return false;
-  const r = await fetch(`${base}/api/tracker`, {
-    method: "PUT",
-    headers: authHeaders(token),
-    body: JSON.stringify(body),
-  });
-  return r.ok;
-}
-
-// --- Accounts ---
-
-export type BankAccount = {
-  id: string;
-  bankName: string;
-  nickname: string;
-  type: string;
-  last4?: string;
-  currency: string;
-  color: string;
-  transactionCount: number;
-  totalIn: number;
-  totalOut: number;
-  lastUploadAt: string | null;
-};
-
-export function fetchAccounts() {
-  return fetchJson<{ accounts: BankAccount[] }>("/api/accounts");
-}
-
-export function createAccount(body: {
-  bankName: string;
-  nickname: string;
-  type: "PERSONAL" | "BUSINESS";
-  last4?: string;
-  currency: string;
-  color: string;
-}) {
-  return fetchJson<{ account: unknown }>("/api/accounts", { method: "POST", body: JSON.stringify(body) });
-}
-
-export function deleteAccount(id: string) {
-  return fetchJson<{ ok?: boolean }>(`/api/accounts/${encodeURIComponent(id)}`, { method: "DELETE" });
-}
-
-// --- Statement upload (multipart) ---
-
-export type UploadParseResponse = {
-  transactions: unknown[];
-  summary?: {
-    count: number;
-    totalCredit?: number;
-    totalDebit?: number;
-    month?: string;
-    dateFrom?: string;
-    dateTo?: string;
-    net?: number;
-  } | null;
-  statementDocument?: unknown;
-  error?: string;
-};
-
-export async function postStatementUpload(
-  accountId: string,
-  file: { uri: string; name: string; mimeType?: string | null },
-  statementMonth?: string
-): Promise<{ status: number; data?: UploadParseResponse; error?: string }> {
+export async function fetchJson<T>(
+  path: string,
+  init?: RequestInit
+): Promise<{ data?: T; error?: string; status: number }> {
   const base = await getApiBase();
   const token = await getToken();
   if (!base || !token) {
     return { status: 401, error: "Not signed in" };
   }
-  const form = new FormData();
-  const mime = file.mimeType && file.mimeType.length > 0 ? file.mimeType : "application/octet-stream";
-  form.append("file", { uri: file.uri, name: file.name, type: mime } as unknown as Blob);
-  form.append("accountId", accountId);
-  if (statementMonth) {
-    form.append("statementMonth", statementMonth);
-  }
-  const r = await fetch(`${base}/api/upload`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  const r = await fetchWithTimeout(url, {
+    ...init,
+    headers: { ...authHeaders(token), ...((init?.headers as Record<string, string>) || {}) },
+  });
   const text = await r.text();
+  if (r.status === 401) return { status: 401, error: "Unauthorized" };
   if (!r.ok) {
-    return { status: r.status, error: messageFromApiBody(text, r.status, r.statusText || "Upload failed") };
+    return { status: r.status, error: messageFromApiBody(text, r.status, r.statusText || "Request failed") };
   }
   try {
-    return { status: r.status, data: JSON.parse(text) as UploadParseResponse };
+    return { status: r.status, data: JSON.parse(text) as T };
   } catch {
-    return { status: r.status, error: messageFromApiBody(text, r.status, "Invalid response from server") };
+    return { status: r.status, error: "Invalid JSON from server" };
   }
 }
 
-export function postStatementConfirm(body: {
-  transactions: unknown[];
-  accountId: string;
-  month?: string;
-  sourceFileName: string;
-  statementDocument: unknown;
-}) {
-  return fetchJson<{ saved: number }>("/api/upload/confirm", { method: "POST", body: JSON.stringify(body) });
-}
-
-// --- Reports ---
-
-export type ReportRow = {
-  _id: string;
+export type EntryRow = {
+  id: string;
   createdAt: string;
-  month?: string;
-  title: string;
-  content: Record<string, unknown>;
+  grossAmount: number;
+  mode: string;
+  allocations?: { name: string; type: string; amount: number }[];
 };
 
-export function fetchReports() {
-  return fetchJson<{ reports: ReportRow[] }>("/api/reports");
+export type ProgressResponse = {
+  totalIncome: number;
+  wealthRetained: number;
+  totalGiven: number;
+  totalSpend: number;
+  entryCount: number;
+  firstAt: string | null;
+  lastAt: string | null;
+  byBucket: { name: string; total: number }[];
+  wealthSeries: { date: string; wealthRetained: number }[];
+};
+
+export function fetchEntries() {
+  return fetchJson<{ entries: EntryRow[] }>("/api/entries");
 }
 
-export function fetchReportById(id: string) {
-  return fetchJson<{ report: ReportRow }>(`/api/reports/${encodeURIComponent(id)}`);
+export function fetchProgress() {
+  return fetchJson<ProgressResponse>("/api/entries/progress");
 }
 
-export function postReportGenerate(body: { month?: string; accountIds: string[] }) {
-  return fetchJson<{ report: ReportRow }>("/api/reports/generate", { method: "POST", body: JSON.stringify(body) });
+export function createEntry(body: {
+  grossAmount: number;
+  mode: "recommended" | "custom";
+  formulaSnapshot: unknown[];
+  allocations: { name: string; type: string; amount: number }[];
+}) {
+  return fetchJson<{ entry: EntryRow }>("/api/entries", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function deleteEntry(id: string) {
+  return fetchJson<{ ok: boolean }>(`/api/entries/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function clearAllEntries() {
+  return fetchJson<{ deleted: number }>("/api/entries", { method: "DELETE" });
 }

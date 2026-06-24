@@ -27,7 +27,7 @@ function getExpoOriginalFullName(): string | null {
  * Prefer embedded `originalFullName` (correct for EAS builds). Else `EXPO_PUBLIC_EXPO_AUTH_PROXY_PATH`, else @anonymous/slug.
  */
 function getExpoAuthProxyRedirectUri(): string {
-  const slug = Constants.expoConfig?.slug ?? "vaultly";
+  const slug = Constants.expoConfig?.slug ?? "arzo";
   const fromBuild = getExpoOriginalFullName();
   if (fromBuild) {
     return `${EXPO_AUTH_PROXY_ORIGIN}/${fromBuild}`;
@@ -62,7 +62,7 @@ export function getGoogleOAuthRedirectUri(_webClientId: string): string {
   }
 
   const schemeRaw = Constants.expoConfig?.scheme;
-  const scheme = Array.isArray(schemeRaw) ? schemeRaw[0] : (schemeRaw ?? "vaultly");
+  const scheme = Array.isArray(schemeRaw) ? schemeRaw[0] : (schemeRaw ?? "arzo");
   const uri = AuthSession.makeRedirectUri({ scheme });
   return Array.isArray(uri) ? uri[0] : uri;
 }

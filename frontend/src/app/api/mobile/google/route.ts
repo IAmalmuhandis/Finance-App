@@ -24,10 +24,7 @@ export async function POST(req: Request) {
     }
 
     const client = new OAuth2Client(audience);
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience,
-    });
+    const ticket = await client.verifyIdToken({ idToken, audience });
     const payload = ticket.getPayload();
     if (!payload?.email || !payload.sub) {
       return withCors(NextResponse.json({ error: "Invalid Google token" }, { status: 401 }));

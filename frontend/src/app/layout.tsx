@@ -1,12 +1,27 @@
 import type { Metadata } from "next";
+import { Fraunces, Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { Providers } from "@/components/providers";
-import { VAULTLY } from "@/lib/brand";
+import { ARZO } from "@/lib/brand";
 import "./globals.css";
 
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  axes: ["opsz"],
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: VAULTLY.name,
-  description: `${VAULTLY.name} — ${VAULTLY.tagline}`,
+  title: ARZO.name,
+  description: `${ARZO.name} — ${ARZO.tagline}`,
+  icons: { icon: "/arzo-icon.svg", apple: "/arzo-icon.svg" },
 };
 
 export default function RootLayout({
@@ -15,13 +30,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
-      <body
-        className="min-h-full bg-bg-app font-sans text-text-primary"
-        suppressHydrationWarning
-      >
+    <html lang="en" className={`${fraunces.variable} ${inter.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="min-h-full bg-bg-app font-sans text-text-primary" suppressHydrationWarning>
         <Providers>{children}</Providers>
-        <Toaster richColors position="top-right" />
+        <Toaster position="top-right" />
       </body>
     </html>
   );

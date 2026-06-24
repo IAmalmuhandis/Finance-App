@@ -101,7 +101,7 @@ export function GoogleAuthMobile({ disabled, busy, setBusy, onIdToken, onMessage
           {configError ||
             (serverHadBaseButNoId
               ? "Server has no Google Web client ID (set GOOGLE_CLIENT_ID in frontend/.env.local and restart Next.js), or add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to Mobile/.env and restart Expo with --clear."
-              : "Set your Vaultly server URL first, then try again. Or add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (or GOOGLE_CLIENT_ID) to Mobile/.env and run: npx expo start --clear")}
+              : "Set your Arzo server URL first, then try again. Or add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (or GOOGLE_CLIENT_ID) to Mobile/.env and run: npx expo start --clear")}
         </Text>
       </View>
     );
@@ -206,7 +206,7 @@ function GoogleAuthMobileInner({
         base = pending;
       }
       if (!base) {
-        onMessage("Save your Vaultly server URL first (use the main button above), then try Google.");
+        onMessage("Save your Arzo server URL first (use the main button above), then try Google.");
         return;
       }
       const gate = await fetchSocialAuthConfig(base);
@@ -224,7 +224,7 @@ function GoogleAuthMobileInner({
         }
         if (baked) {
           onMessage(
-            "This Vaultly server did not return a Google Web Client ID. Set GOOGLE_CLIENT_ID (or NEXT_PUBLIC_GOOGLE_CLIENT_ID / AUTH_GOOGLE_ID) in the server's environment to match EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in Mobile/.env, then restart the server."
+            "This Arzo server did not return a Google Web Client ID. Set GOOGLE_CLIENT_ID (or NEXT_PUBLIC_GOOGLE_CLIENT_ID / AUTH_GOOGLE_ID) in the server's environment to match EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in Mobile/.env, then restart the server."
           );
           return;
         }
@@ -265,7 +265,7 @@ function GoogleAuthMobileInner({
       >
         {busy ? <ActivityIndicator color={THEME.colors.text} /> : <Text style={styles.btnText}>Google</Text>}
       </TouchableOpacity>
-      <Text style={styles.hint}>Uses the same Google account as the Vaultly website.</Text>
+      <Text style={styles.hint}>Uses the same Google account as the Arzo website.</Text>
     </View>
   );
 }

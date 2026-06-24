@@ -1,89 +1,80 @@
 import React from "react";
 import { View, ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import * as WebBrowser from "expo-web-browser";
+import { useFonts, Fraunces_500Medium, Fraunces_600SemiBold } from "@expo-google-fonts/fraunces";
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from "@expo-google-fonts/inter";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { LayoutDashboard, TrendingUp, List, Building2, Upload, BarChart2 } from "lucide-react-native";
+import { Calculator, TrendingUp } from "lucide-react-native";
 
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
 import LoginScreen from "./src/screens/LoginScreen";
-import DashboardScreen from "./src/screens/DashboardScreen";
-import AccountsScreen from "./src/screens/AccountsScreen";
-import UploadScreen from "./src/screens/UploadScreen";
-import ReportsScreen from "./src/screens/ReportsScreen";
-import TrackerScreen from "./src/screens/TrackerScreen";
-import TransactionsScreen from "./src/screens/TransactionsScreen";
+import CalculatorScreen from "./src/screens/CalculatorScreen";
+import ProgressScreen from "./src/screens/ProgressScreen";
 import { THEME } from "./src/theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
 const Tab = createBottomTabNavigator();
 
-const buildTabOptions = (signOut: () => void, signingOut: boolean) => ({
-  headerStyle: {
-    backgroundColor: THEME.colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: THEME.colors.border,
-  },
-  headerTintColor: THEME.colors.text,
-  headerTitleStyle: { fontWeight: "600" as const, fontSize: 17 },
-  headerRight: () => (
-    <TouchableOpacity
-      onPress={() => void signOut()}
-      disabled={signingOut}
-      style={{ marginRight: 14, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72, alignItems: "flex-end" }}
-      hitSlop={8}
-    >
-      {signingOut ? (
+function SignOutButton({ onPress, busy }: { onPress: () => void; busy: boolean }) {
+  return (
+    <TouchableOpacity onPress={onPress} disabled={busy} style={{ marginRight: 14, paddingVertical: 6 }}>
+      {busy ? (
         <ActivityIndicator size="small" color={THEME.colors.textSecondary} />
       ) : (
-        <Text style={{ color: THEME.colors.textSecondary, fontSize: 14 }}>Sign out</Text>
+        <Text style={{ color: THEME.colors.textSecondary, fontSize: 13, fontFamily: THEME.fonts.uiMedium }}>
+          Sign out
+        </Text>
       )}
     </TouchableOpacity>
-  ),
-  tabBarStyle: {
-    backgroundColor: THEME.colors.background,
-    borderTopColor: THEME.colors.border,
-    paddingBottom: 8,
-    paddingTop: 8,
-    height: 64,
-  },
-  tabBarActiveTintColor: THEME.colors.primary,
-  tabBarInactiveTintColor: THEME.colors.textSecondary,
-});
+  );
+}
 
 function MainTabs() {
   const { signOut, signingOut } = useAuth();
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => {
-        const base = buildTabOptions(signOut, signingOut);
-        return {
-          ...base,
-          headerTitle: route.name === "Tracker" ? "Formula" : route.name,
-          tabBarLabel: route.name === "Tracker" ? "Formula" : route.name,
-          tabBarLabelStyle: { fontSize: 9 },
-          tabBarItemStyle: { minWidth: 48 },
-          tabBarIcon: ({ color, size }) => {
-            if (route.name === "Dashboard") return <LayoutDashboard size={size} color={color} />;
-            if (route.name === "Accounts") return <Building2 size={size} color={color} />;
-            if (route.name === "Upload") return <Upload size={size} color={color} />;
-            if (route.name === "Transactions") return <List size={size} color={color} />;
-            if (route.name === "Reports") return <BarChart2 size={size} color={color} />;
-            if (route.name === "Tracker") return <TrendingUp size={size} color={color} />;
-            return null;
-          },
-        };
-      }}
+      screenOptions={({ route }) => ({
+        headerStyle: {
+          backgroundColor: THEME.colors.background,
+          borderBottomWidth: 1,
+          borderBottomColor: THEME.colors.border,
+        },
+        headerTitleStyle: {
+          fontFamily: THEME.fonts.display,
+          fontSize: 20,
+          color: THEME.colors.primary,
+        },
+        headerTintColor: THEME.colors.text,
+        tabBarStyle: {
+          backgroundColor: THEME.colors.surface,
+          borderTopColor: THEME.colors.border,
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 64,
+        },
+        tabBarActiveTintColor: THEME.colors.primary,
+        tabBarInactiveTintColor: THEME.colors.textSecondary,
+        tabBarLabelStyle: { fontFamily: THEME.fonts.uiMedium, fontSize: 11 },
+        tabBarIcon: ({ color, size }) => {
+          if (route.name === "Calculator") return <Calculator size={size} color={color} strokeWidth={1.75} />;
+          return <TrendingUp size={size} color={color} strokeWidth={1.75} />;
+        },
+      })}
     >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Accounts" component={AccountsScreen} />
-      <Tab.Screen name="Upload" component={UploadScreen} />
-      <Tab.Screen name="Transactions" component={TransactionsScreen} />
-      <Tab.Screen name="Reports" component={ReportsScreen} />
-      <Tab.Screen name="Tracker" component={TrackerScreen} />
+      <Tab.Screen
+        name="Calculator"
+        component={CalculatorScreen}
+        options={{ headerRight: () => <SignOutButton onPress={() => void signOut()} busy={signingOut} /> }}
+      />
+      <Tab.Screen
+        name="Progress"
+        component={ProgressScreen}
+        options={{ headerRight: () => <SignOutButton onPress={() => void signOut()} busy={signingOut} /> }}
+      />
     </Tab.Navigator>
   );
 }
@@ -97,18 +88,32 @@ function Root() {
       </View>
     );
   }
-  if (!isSignedIn) {
-    return <LoginScreen />;
-  }
+  if (!isSignedIn) return <LoginScreen />;
   return (
     <NavigationContainer>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <MainTabs />
     </NavigationContainer>
   );
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Fraunces_500Medium,
+    Fraunces_600SemiBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: THEME.colors.background }}>
+        <ActivityIndicator size="large" color={THEME.colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <AuthProvider>

@@ -18,7 +18,7 @@ export function PasswordInput({ className, inputClassName, disabled, ...props }:
         autoComplete={props.autoComplete ?? "current-password"}
         disabled={disabled}
         className={cn(
-          "w-full rounded-lg border border-border-subtle bg-bg-input py-2.5 pl-3 pr-11 text-sm text-text-primary outline-none transition placeholder:text-text-muted focus:border-border-strong focus:ring-1 focus:ring-accent-blue/35 disabled:cursor-not-allowed disabled:opacity-50",
+          "w-full rounded-[12px] border border-border-subtle bg-bg-input py-2.5 pl-3 pr-11 text-sm text-text-primary outline-none transition placeholder:text-text-muted focus:border-jade focus:ring-1 focus:ring-jade/30 disabled:cursor-not-allowed disabled:opacity-50",
           inputClassName
         )}
         {...props}

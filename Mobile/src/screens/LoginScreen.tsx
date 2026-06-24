@@ -13,8 +13,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff, UserPlus } from "lucide-react-native";
 import { useAuth } from "../auth/AuthContext";
 import { GoogleAuthMobile } from "../components/GoogleAuthMobile";
-import { VaultlyMark } from "../components/VaultlyMark";
-import { VAULTLY, THEME } from "../theme";
+import { ArzoMark } from "../components/ArzoMark";
+import { ARZO, THEME } from "../theme";
 import * as api from "../lib/api";
 
 type Mode = "signin" | "signup";
@@ -58,7 +58,7 @@ export default function LoginScreen() {
     if (showServer) {
       const s = serverUrl.trim().replace(/\/$/, "");
       if (!s) {
-        setLocalError("Enter the URL of your Vaultly app (e.g. http://192.168.1.10:3000).");
+        setLocalError("Enter the URL of your Arzo app (e.g. http://192.168.1.10:3000).");
         return;
       }
       await api.setApiBase(s);
@@ -103,24 +103,24 @@ export default function LoginScreen() {
           <View style={styles.brand}>
             <View style={styles.brandRow}>
               <View style={styles.brandIcon}>
-                <VaultlyMark size={32} />
+                <ArzoMark size={56} />
               </View>
               <View>
-                <Text style={styles.brandName}>{VAULTLY.name}</Text>
-                <Text style={styles.brandTag}>{VAULTLY.tagline}</Text>
+                <Text style={styles.brandName}>{ARZO.name}</Text>
+                <Text style={styles.brandTag}>{ARZO.tagline}</Text>
               </View>
             </View>
             <Text style={styles.hint}>
               {mode === "signin"
                 ? "Sign in with the same account you use on the web, or create a new one below."
-                : "Create a Vaultly account. You can use the same email on the web app as well."}
+                : "Create an Arzo account. You can use the same email on the web app as well."}
             </Text>
           </View>
 
           <View style={styles.form}>
             {showServer && (
               <>
-                <Text style={styles.label}>Vaultly web app URL</Text>
+                <Text style={styles.label}>Arzo server URL</Text>
                 <Text style={styles.serverHelp}>
                   Same Wi-Fi as this phone. Use your computer LAN address and port (usually :3000), not localhost.
                 </Text>
@@ -278,34 +278,42 @@ const styles = StyleSheet.create({
   contentWrap: { flex: 1, position: "relative" },
   busyOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(8, 13, 26, 0.9)",
+    backgroundColor: "rgba(246, 244, 238, 0.92)",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 40,
     paddingHorizontal: 32,
   },
-  busyTitle: { marginTop: 20, color: THEME.colors.text, fontSize: 16, fontWeight: "600", textAlign: "center" },
-  busySub: { marginTop: 8, color: THEME.colors.textMuted, fontSize: 13, textAlign: "center" },
+  busyTitle: {
+    marginTop: 20,
+    color: THEME.colors.text,
+    fontSize: 16,
+    fontFamily: THEME.fonts.uiSemibold,
+    textAlign: "center",
+  },
+  busySub: { marginTop: 8, color: THEME.colors.textMuted, fontSize: 13, fontFamily: THEME.fonts.ui, textAlign: "center" },
   brand: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 20 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  brandIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: THEME.colors.surface,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-    alignItems: "center",
-    justifyContent: "center",
+  brandIcon: { width: 56, height: 56, alignItems: "center", justifyContent: "center" },
+  brandName: {
+    fontSize: 32,
+    fontFamily: THEME.fonts.display,
+    color: THEME.colors.primary,
+    letterSpacing: -0.5,
   },
-  brandName: { fontSize: 30, fontWeight: "800", color: THEME.colors.text, letterSpacing: -0.5 },
-  brandTag: { color: THEME.colors.textSecondary, fontSize: 16, marginTop: 2 },
+  brandTag: {
+    color: THEME.colors.gold,
+    fontSize: 15,
+    fontFamily: THEME.fonts.displayRegular,
+    fontStyle: "italic",
+    marginTop: 4,
+  },
   hint: { color: THEME.colors.textMuted, fontSize: 14, lineHeight: 20, marginTop: 20 },
   form: { paddingHorizontal: 24, paddingBottom: 32, gap: 4 },
   modeRow: {
     flexDirection: "row",
     backgroundColor: THEME.colors.input,
-    borderRadius: 10,
+    borderRadius: THEME.radius.input,
     borderWidth: 1,
     borderColor: THEME.colors.border,
     marginBottom: 8,
@@ -321,17 +329,18 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.colors.input,
     borderWidth: 1,
     borderColor: THEME.colors.border,
-    borderRadius: 10,
+    borderRadius: THEME.radius.input,
     padding: 14,
     color: THEME.colors.text,
     fontSize: 16,
+    fontFamily: THEME.fonts.ui,
   },
   passwordWrap: { position: "relative", justifyContent: "center" },
   passwordInput: {
     backgroundColor: THEME.colors.input,
     borderWidth: 1,
     borderColor: THEME.colors.border,
-    borderRadius: 10,
+    borderRadius: THEME.radius.input,
     paddingVertical: 14,
     paddingLeft: 14,
     paddingRight: 52,
@@ -346,13 +355,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 10,
   },
-  err: { color: THEME.colors.accentRed, fontSize: 14, marginTop: 8 },
+  err: { color: THEME.colors.accentAlert, fontSize: 14, marginTop: 8, fontFamily: THEME.fonts.ui },
   btn: {
     backgroundColor: THEME.colors.primary,
-    borderRadius: 10,
+    borderRadius: THEME.radius.button,
     padding: 16,
     alignItems: "center",
     marginTop: 20,
   },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  btnText: { color: THEME.colors.textOnJade, fontFamily: THEME.fonts.uiSemibold, fontSize: 16 },
 });

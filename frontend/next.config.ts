@@ -38,18 +38,9 @@ mergeEnvLocal(monorepoRoot);
 mergeEnvLocal(thisDir);
 
 const nextConfig: NextConfig = {
-  // Multiple package-lock files make Next 16 (Turbopack) pick the wrong root; pin both to the workspace
-  // root so `next build` matches `npm`/`package.json` (fixes Render and local warnings)
-  // https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory
   outputFileTracingRoot: monorepoRoot,
   turbopack: {
     root: monorepoRoot,
-  },
-  transpilePackages: ["@financeos/database", "@financeos/backend", "@financeos/ai"],
-  experimental: {
-    serverActions: {
-      bodySizeLimit: "15mb",
-    },
   },
 };
 

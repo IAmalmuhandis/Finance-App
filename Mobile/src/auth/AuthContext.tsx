@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (em: string, password: string) => {
       const trimmed = await resolveBase();
       if (!trimmed) {
-        setError("Add your Vaultly server URL on the sign-in screen (or set EXPO_PUBLIC_API_BASE_URL in Mobile/.env).");
+        setError("Add your Arzo server URL on the sign-in screen (or set EXPO_PUBLIC_API_BASE_URL in Mobile/.env).");
         return false;
       }
       setApiBaseState(trimmed);
@@ -69,8 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
       await api.setToken(res.token);
-      await api.setUserEmail(em.trim());
-      setEmail(em.trim());
+      await api.setUserEmail((res.email || em).trim());
+      setEmail((res.email || em).trim());
       setIsSignedIn(true);
       setError(null);
       return true;
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const trimmed = await resolveBase();
       if (!trimmed) {
-        setError("Add your Vaultly server URL on the sign-in screen (or set EXPO_PUBLIC_API_BASE_URL in Mobile/.env).");
+        setError("Add your Arzo server URL on the sign-in screen (or set EXPO_PUBLIC_API_BASE_URL in Mobile/.env).");
         return false;
       }
       setApiBaseState(trimmed);
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       const trimmed = await resolveBase();
       if (!trimmed) {
-        setError("Add your Vaultly server URL first, then try Google again.");
+        setError("Add your Arzo server URL first, then try Google again.");
         return false;
       }
       setApiBaseState(trimmed);
@@ -131,11 +131,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!social.googleMobile) {
         if (social.webClientId) {
           setError(
-            "Mobile Google sign-in needs NEXTAUTH_SECRET on the Vaultly server (same variable the web app uses)."
+            "Mobile Google sign-in needs NEXTAUTH_SECRET on the Arzo server (same variable the web app uses)."
           );
         } else if (getGoogleWebClientId()) {
           setError(
-            "The server did not return a Google Web Client ID. Set GOOGLE_CLIENT_ID (or NEXT_PUBLIC_GOOGLE_CLIENT_ID) on the Vaultly server to match the mobile app, then restart the server."
+            "The server did not return a Google Web Client ID. Set GOOGLE_CLIENT_ID on the Arzo server to match the mobile app, then restart the server."
           );
         } else {
           setError("Could not load Google client ID from this server. Check GOOGLE_CLIENT_ID on the server.");

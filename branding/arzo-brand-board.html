@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arzo — Brand Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --jade:#0C4A3E; --jade-deep:#082E27; --ink:#11201B; --slate:#5B6B64;
+    --gold:#C9A24B; --gold-soft:#EADFBE; --ivory:#F6F4EE; --cloud:#FFFFFF;
+    --line:#E6E1D5;
+    --display:'Fraunces',Georgia,serif; --ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--ui);background:var(--ivory);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:0 20px 64px}
+  .eyebrow{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gold)}
+  .eyebrow.dark{color:var(--gold)}
+  h2{font-family:var(--display);font-weight:600;font-size:24px;color:var(--jade);margin:48px 0 18px}
+  .muted{color:var(--slate)}
+
+  /* HERO */
+  .hero{background:var(--jade);color:var(--ivory);border-radius:0 0 28px 28px;padding:40px 32px 44px;text-align:center}
+  .hero .eyebrow{color:var(--gold)}
+  .lockup{display:flex;align-items:center;justify-content:center;gap:18px;margin:18px 0 10px}
+  .lockup svg{width:72px;height:72px;border-radius:18px;display:block}
+  .wordmark{font-family:var(--display);font-weight:600;font-size:58px;letter-spacing:-.01em;color:var(--ivory);line-height:1}
+  .tagline{font-family:var(--display);font-style:italic;font-size:18px;color:var(--gold-soft);margin-top:6px}
+  .origin{font-size:13px;color:#9DB1A8;margin-top:14px;max-width:380px;margin-left:auto;margin-right:auto}
+
+  /* MARK ROW */
+  .marks{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px}
+  .mark-card{border:1px solid var(--line);border-radius:20px;padding:24px;display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--cloud)}
+  .mark-card.onjade{background:var(--jade);border-color:var(--jade)}
+  .mark-card .cap{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--slate)}
+  .mark-card.onjade .cap{color:#9DB1A8}
+  .mark-card svg{width:64px;height:64px}
+
+  /* COLOR */
+  .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .sw{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--cloud)}
+  .sw .chip{height:62px}
+  .sw .meta{padding:10px 12px}
+  .sw .nm{font-weight:600;font-size:13px}
+  .sw .hx{font-size:12px;color:var(--slate);font-variant-numeric:tabular-nums;text-transform:uppercase}
+
+  /* ALLOCATION BAR */
+  .albar{display:flex;height:46px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+  .albar span{flex:1;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;font-size:10px;font-weight:600;color:#fff}
+  .alkey{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--slate)}
+  .alkey i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+
+  /* TYPE */
+  .typecard{border:1px solid var(--line);border-radius:20px;background:var(--cloud);padding:24px;margin-bottom:14px}
+  .specimen-d{font-family:var(--display);font-weight:600;font-size:40px;color:var(--jade);line-height:1.1}
+  .specimen-n{font-family:var(--display);font-weight:600;font-size:46px;color:var(--gold);line-height:1;font-variant-numeric:tabular-nums}
+  .specimen-u{font-family:var(--ui);font-size:16px;color:var(--ink)}
+  .scalerow{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:10px 0;font-size:13px;color:var(--slate)}
+  .scalerow b{color:var(--ink);font-weight:600}
+
+  /* USAGE */
+  .usage{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .ucard{border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--cloud);font-size:14px}
+  .ucard h4{font-size:13px;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+  .ucard.do h4{color:var(--positive,#2E7D5B)}
+  .ucard.dont h4{color:#B4543A}
+  .ucard li{margin:0 0 6px 16px}
+  @media(max-width:640px){
+    .marks{grid-template-columns:1fr}
+    .usage{grid-template-columns:1fr}
+    .wordmark{font-size:44px}.lockup svg{width:56px;height:56px}
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="eyebrow">Brand Guide</div>
+  <div class="lockup">
+    <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Arzo">
+      <rect width="512" height="512" rx="120" fill="#0C4A3E"/>
+      <path d="M150 372 L256 140 L362 372" stroke="#F6F4EE" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M191 284 L321 284" stroke="#C9A24B" stroke-width="34" stroke-linecap="round"/>
+    </svg>
+    <div class="wordmark">Arzo</div>
+  </div>
+  <div class="tagline">Give every naira a job.</div>
+  <div class="origin">Arzo comes from <em>Arziki</em> — the Hausa word for wealth and prosperity. The mark is an “A” rising like a peak, split by a single gold bar: growth, divided with intention.</div>
+</div>
+
+<div class="wrap">
+
+  <h2>The mark</h2>
+  <div class="marks">
+    <div class="mark-card onjade">
+      <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" rx="120" fill="#0C4A3E"/><path d="M150 372 L256 140 L362 372" stroke="#F6F4EE" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/><path d="M191 284 L321 284" stroke="#C9A24B" stroke-width="34" stroke-linecap="round"/></svg>
+      <div class="cap">App icon · primary</div>
+    </div>
+    <div class="mark-card">
+      <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" rx="120" fill="#F6F4EE"/><path d="M150 372 L256 140 L362 372" stroke="#0C4A3E" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/><path d="M191 284 L321 284" stroke="#C9A24B" stroke-width="34" stroke-linecap="round"/></svg>
+      <div class="cap">On light</div>
+    </div>
+    <div class="mark-card">
+      <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="512" height="512" rx="120" fill="none"/><path d="M150 372 L256 140 L362 372" stroke="#0C4A3E" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/><path d="M191 284 L321 284" stroke="#0C4A3E" stroke-width="34" stroke-linecap="round"/></svg>
+      <div class="cap">Monochrome</div>
+    </div>
+  </div>
+
+  <h2>Color</h2>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#0C4A3E"></div><div class="meta"><div class="nm">Jade · primary</div><div class="hx">#0C4A3E</div></div></div>
+    <div class="sw"><div class="chip" style="background:#082E27"></div><div class="meta"><div class="nm">Deep Jade</div><div class="hx">#082E27</div></div></div>
+    <div class="sw"><div class="chip" style="background:#C9A24B"></div><div class="meta"><div class="nm">Gold · accent</div><div class="hx">#C9A24B</div></div></div>
+    <div class="sw"><div class="chip" style="background:#EADFBE"></div><div class="meta"><div class="nm">Gold Soft</div><div class="hx">#EADFBE</div></div></div>
+    <div class="sw"><div class="chip" style="background:#F6F4EE;border-bottom:1px solid #E6E1D5"></div><div class="meta"><div class="nm">Ivory · surface</div><div class="hx">#F6F4EE</div></div></div>
+    <div class="sw"><div class="chip" style="background:#11201B"></div><div class="meta"><div class="nm">Ink · text</div><div class="hx">#11201B</div></div></div>
+    <div class="sw"><div class="chip" style="background:#5B6B64"></div><div class="meta"><div class="nm">Slate · muted</div><div class="hx">#5B6B64</div></div></div>
+    <div class="sw"><div class="chip" style="background:#2E7D5B"></div><div class="meta"><div class="nm">Positive</div><div class="hx">#2E7D5B</div></div></div>
+  </div>
+
+  <h2>Allocation palette</h2>
+  <p class="muted" style="font-size:14px;margin-bottom:14px">The bucket colours — one cohesive green-to-gold family with a single neutral.</p>
+  <div class="albar">
+    <span style="background:#0C4A3E">⅓</span>
+    <span style="background:#3E7C6B">⅓</span>
+    <span style="background:#C9A24B">⅑</span>
+    <span style="background:#B5843A">⅑</span>
+    <span style="background:#6B7A6F">⅑</span>
+  </div>
+  <div class="alkey">
+    <span><i style="background:#0C4A3E"></i>Investment</span>
+    <span><i style="background:#3E7C6B"></i>Personal needs</span>
+    <span><i style="background:#C9A24B"></i>Family</span>
+    <span><i style="background:#B5843A"></i>Sadaqah</span>
+    <span><i style="background:#6B7A6F"></i>Emergency</span>
+  </div>
+
+  <h2>Typography</h2>
+  <div class="typecard">
+    <div class="eyebrow" style="color:var(--slate)">Display · Fraunces</div>
+    <div class="specimen-d" style="margin-top:8px">Prosperity through intention</div>
+    <div class="specimen-n" style="margin-top:14px">₦1,240,000</div>
+    <p class="muted" style="font-size:13px;margin-top:6px">Wordmark, screen titles, and the hero “Wealth Retained” figure.</p>
+  </div>
+  <div class="typecard">
+    <div class="eyebrow" style="color:var(--slate)">UI · Inter</div>
+    <div class="specimen-u" style="margin-top:8px">Total income processed · Wealth retained · Save entry</div>
+    <div class="specimen-u" style="font-variant-numeric:tabular-nums;font-weight:500;margin-top:6px">₦300,000 · ₦100,000 · ₦100,000</div>
+    <p class="muted" style="font-size:13px;margin-top:6px">All labels, inputs, buttons and naira tables (tabular figures).</p>
+  </div>
+  <div class="typecard" style="padding-top:8px">
+    <div class="scalerow"><span>Hero figure</span><b>Fraunces 600 · 44px</b></div>
+    <div class="scalerow"><span>Screen title</span><b>Fraunces 600 · 28px</b></div>
+    <div class="scalerow"><span>Section heading</span><b>Fraunces 600 · 20px</b></div>
+    <div class="scalerow"><span>Body</span><b>Inter 400 · 16px</b></div>
+    <div class="scalerow"><span>Amount (table)</span><b>Inter 500 tabular · 16px</b></div>
+    <div class="scalerow" style="border-bottom:1px solid var(--line)"><span>Eyebrow</span><b>Inter 600 · 12px · UPPERCASE</b></div>
+  </div>
+
+  <h2>Logo usage</h2>
+  <div class="usage">
+    <div class="ucard do">
+      <h4>Do</h4>
+      <ul>
+        <li>Keep one gold accent per screen — the hero number or one key action.</li>
+        <li>Use ivory “A” on jade, jade “A” on light.</li>
+        <li>Give the lockup clear space equal to the height of the “A”.</li>
+      </ul>
+    </div>
+    <div class="ucard dont">
+      <h4>Don't</h4>
+      <ul>
+        <li>Recolour outside the palette or add shadows/gradients to the mark.</li>
+        <li>Stretch, skew, or rotate the icon.</li>
+        <li>Make gold a fill colour everywhere — it stops being special.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
