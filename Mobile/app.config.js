@@ -39,7 +39,7 @@ module.exports = {
     googleAndroidClientId: (process.env.EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID || "").trim(),
     expoAuthProxyPath: (process.env.EXPO_PUBLIC_EXPO_AUTH_PROXY_PATH || "").trim(),
     eas: {
-      projectId: "46ca06fd-aaaf-4527-af4a-d638608df24c",
+      projectId: "74d76464-3d0d-4e2f-9b6e-5e946ff6fa8b",
     },
   },
 };
