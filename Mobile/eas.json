@@ -12,6 +12,12 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://finance-app-0cwn.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "902836077629-lb0pr8lt279q3vac3mn6bfb4g4br8a4q.apps.googleusercontent.com",
+        "EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID": "902836077629-56tc7ksd9bsgju7p20bk70jv2aqv80p2.apps.googleusercontent.com",
+        "EXPO_PUBLIC_EXPO_AUTH_PROXY_PATH": "@abkr_almuhandis/arzo"
       }
     },
     "production": {
