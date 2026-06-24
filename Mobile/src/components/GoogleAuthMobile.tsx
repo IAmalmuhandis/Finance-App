@@ -1,15 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { ResponseType } from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
+import Constants from "expo-constants";
 import { THEME } from "../theme";
-import { getGoogleWebClientId } from "../lib/google-config";
-import { getGoogleOAuthRedirectUri } from "../lib/google-oauth-redirect";
+import { getGoogleWebClientId, getGoogleAndroidClientId } from "../lib/google-config";
 import { fetchSocialAuthConfig, getApiBase, setApiBase } from "../lib/api";
 
-function sameGoogleClientId(a: string, b: string): boolean {
-  return a.trim().replace(/\.apps\.googleusercontent\.com$/i, "") === b.trim().replace(/\.apps\.googleusercontent\.com$/i, "");
-}
+WebBrowser.maybeCompleteAuthSession();
+
+// In Expo Go, Constants.appOwnership === "expo". In a standalone APK it's null/"standalone".
+const isExpoGo = Constants.appOwnership === "expo";
 
 type Props = {
   disabled: boolean;
@@ -17,79 +18,15 @@ type Props = {
   setBusy: (v: boolean) => void;
   onIdToken: (idToken: string) => Promise<boolean>;
   onMessage: (msg: string | null) => void;
-  /** Server URL being typed before "Save" — used to load `webClientId` from `/api/auth/social-config`. */
   pendingBaseUrl?: string;
 };
 
-function resolveBaseForConfig(pending: string | undefined): string {
-  return (pending || "").trim().replace(/\/$/, "");
-}
-
-/**
- * Google sign-in for Expo Go / dev builds. Client ID from `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` or from the server
- * `GET /api/auth/social-config` (`webClientId`). Add `https://auth.expo.io/@anonymous/<slug>` to the Google Web client redirect URIs.
- */
 export function GoogleAuthMobile({ disabled, busy, setBusy, onIdToken, onMessage, pendingBaseUrl }: Props) {
-  const baked = getGoogleWebClientId();
-  const [remoteClientId, setRemoteClientId] = useState("");
-  const [configLoading, setConfigLoading] = useState(true);
-  const [configError, setConfigError] = useState<string | null>(null);
-  const [serverHadBaseButNoId, setServerHadBaseButNoId] = useState(false);
+  const webClientId = getGoogleWebClientId();
+  const androidClientId = getGoogleAndroidClientId();
 
-  const loadConfig = useCallback(async () => {
-    setConfigLoading(true);
-    setConfigError(null);
-    setServerHadBaseButNoId(false);
-    try {
-      const stored = (await getApiBase()).trim().replace(/\/$/, "");
-      const pending = resolveBaseForConfig(pendingBaseUrl);
-      const base = stored || pending;
-      if (!base) {
-        setRemoteClientId("");
-        return;
-      }
-      const cfg = await fetchSocialAuthConfig(base);
-      if (cfg.fetchError) {
-        setConfigError(cfg.fetchError);
-        setRemoteClientId("");
-        return;
-      }
-      if (cfg.webClientId) {
-        setRemoteClientId(cfg.webClientId);
-        return;
-      }
-      setRemoteClientId("");
-      if (cfg.httpStatus === 200) {
-        setServerHadBaseButNoId(true);
-      }
-    } catch {
-      setConfigError("Could not load Google settings from server.");
-      setRemoteClientId("");
-    } finally {
-      setConfigLoading(false);
-    }
-  }, [pendingBaseUrl]);
-
-  useEffect(() => {
-    void loadConfig();
-  }, [loadConfig]);
-
-  const effectiveId = baked || remoteClientId;
-
-  if (configLoading) {
-    return (
-      <View style={styles.wrap}>
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>Or continue with</Text>
-          <View style={styles.divider} />
-        </View>
-        <ActivityIndicator color={THEME.colors.textMuted} style={{ marginVertical: 12 }} />
-      </View>
-    );
-  }
-
-  if (!effectiveId) {
+  // In Expo Go, native Google OAuth doesn't work — show a clear message instead.
+  if (isExpoGo) {
     return (
       <View style={styles.wrap}>
         <View style={styles.dividerRow}>
@@ -98,18 +35,31 @@ export function GoogleAuthMobile({ disabled, busy, setBusy, onIdToken, onMessage
           <View style={styles.divider} />
         </View>
         <Text style={styles.hintMuted}>
-          {configError ||
-            (serverHadBaseButNoId
-              ? "Server has no Google Web client ID (set GOOGLE_CLIENT_ID in frontend/.env.local and restart Next.js), or add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to Mobile/.env and restart Expo with --clear."
-              : "Set your Arzo server URL first, then try again. Or add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (or GOOGLE_CLIENT_ID) to Mobile/.env and run: npx expo start --clear")}
+          Google sign-in is available in the full app (APK). Use email & password to test in Expo Go.
+        </Text>
+      </View>
+    );
+  }
+
+  if (!androidClientId || !webClientId) {
+    return (
+      <View style={styles.wrap}>
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>Or continue with</Text>
+          <View style={styles.divider} />
+        </View>
+        <Text style={styles.hintMuted}>
+          Google sign-in is not configured. Set EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID in Mobile/.env and rebuild.
         </Text>
       </View>
     );
   }
 
   return (
-    <GoogleAuthMobileInner
-      clientId={effectiveId}
+    <GoogleAuthNative
+      webClientId={webClientId}
+      androidClientId={androidClientId}
       disabled={disabled}
       busy={busy}
       setBusy={setBusy}
@@ -120,27 +70,14 @@ export function GoogleAuthMobile({ disabled, busy, setBusy, onIdToken, onMessage
   );
 }
 
-function GoogleAuthMobileInner({
-  clientId,
-  disabled,
-  busy,
-  setBusy,
-  onIdToken,
-  onMessage,
-  pendingBaseUrl,
-}: Props & { clientId: string }) {
-  const redirectUri = getGoogleOAuthRedirectUri(clientId);
+type NativeProps = Props & { webClientId: string; androidClientId: string };
 
-  /** Native: `useIdTokenAuthRequest` forces auth code + token exchange, which often fails silently. Implicit `id_token` + Expo proxy matches the Web client redirect URI. */
+function GoogleAuthNative({ webClientId, androidClientId, disabled, busy, setBusy, onIdToken, onMessage, pendingBaseUrl }: NativeProps) {
+  // Using androidClientId + webClientId together causes Google to include an id_token
+  // with aud=webClientId — exactly what the server's /api/mobile/google expects.
   const [, response, promptAsync] = Google.useAuthRequest({
-    clientId,
-    webClientId: clientId,
-    /** Same Web client on all platforms so Android does not pick a missing `androidClientId`. */
-    androidClientId: clientId,
-    iosClientId: clientId,
-    responseType: ResponseType.IdToken,
-    redirectUri,
-    usePKCE: false,
+    androidClientId,
+    webClientId,
   });
 
   const lastKey = useRef<string | null>(null);
@@ -155,30 +92,21 @@ function GoogleAuthMobileInner({
 
     if (response.type === "error") {
       setBusy(false);
-      const err = response.error as { message?: string } | undefined;
-      const msg =
-        err?.message ||
-        (response.params?.error_description as string) ||
-        (response.params?.error as string) ||
-        "Google sign-in failed";
+      const msg = (response.error as { message?: string } | undefined)?.message || "Google sign-in failed";
       onMessage(msg);
       return;
     }
 
     if (response.type !== "success") return;
 
-    const idToken =
-      (response.params?.id_token as string | undefined) ||
-      (response.authentication?.idToken as string | undefined);
-    const key = `${response.url || ""}|${idToken?.slice(0, 24) || ""}`;
+    const idToken = response.authentication?.idToken;
+    const key = idToken?.slice(0, 32) ?? null;
     if (lastKey.current === key) return;
     lastKey.current = key;
 
     if (!idToken) {
       setBusy(false);
-      onMessage(
-        "No ID token from Google. In Google Cloud Console, add authorized redirect URIs for Expo (see Expo Google auth docs)."
-      );
+      onMessage("No ID token received from Google. Try again.");
       return;
     }
 
@@ -197,56 +125,34 @@ function GoogleAuthMobileInner({
     lastKey.current = null;
     onMessage(null);
     setBusy(true);
-    let openedOAuth = false;
+
+    let opened = false;
     try {
+      // Verify server is reachable and has Google configured
       let base = (await getApiBase()).trim().replace(/\/$/, "");
-      const pending = resolveBaseForConfig(pendingBaseUrl);
+      const pending = (pendingBaseUrl || "").trim().replace(/\/$/, "");
       if (!base && pending) {
         await setApiBase(pending);
         base = pending;
       }
       if (!base) {
-        onMessage("Save your Arzo server URL first (use the main button above), then try Google.");
+        onMessage("Save your Arzo server URL first, then try Google.");
         return;
       }
       const gate = await fetchSocialAuthConfig(base);
-      if (gate.fetchError) {
-        onMessage(gate.fetchError);
-        return;
-      }
+      if (gate.fetchError) { onMessage(gate.fetchError); return; }
       if (!gate.googleMobile) {
-        const baked = getGoogleWebClientId();
-        if (gate.webClientId) {
-          onMessage(
-            "This server is not set up for mobile Google yet (set NEXTAUTH_SECRET on the server — the same value the web app uses)."
-          );
-          return;
-        }
-        if (baked) {
-          onMessage(
-            "This Arzo server did not return a Google Web Client ID. Set GOOGLE_CLIENT_ID (or NEXT_PUBLIC_GOOGLE_CLIENT_ID / AUTH_GOOGLE_ID) in the server's environment to match EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in Mobile/.env, then restart the server."
-          );
-          return;
-        }
-        onMessage(
-          "Could not read Google settings from this server. Check the URL, or add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to Mobile/.env and rebuild."
-        );
+        onMessage("Google sign-in is not configured on the server. Check GOOGLE_CLIENT_ID and NEXTAUTH_SECRET.");
         return;
       }
-      const baked = getGoogleWebClientId();
-      if (baked && gate.webClientId && !sameGoogleClientId(baked, gate.webClientId)) {
-        onMessage(
-          "The Google Web Client ID on this server does not match the one in this app. Use the same OAuth client in Mobile/.env as on the server, or clear EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to load the ID from the server only."
-        );
-        return;
-      }
-      openedOAuth = true;
-      void promptAsync({ showInRecents: true }).catch(() => {
+
+      opened = true;
+      void promptAsync().catch(() => {
         setBusy(false);
-        onMessage("Could not open the Google sign-in page. Try again.");
+        onMessage("Could not open Google sign-in. Try again.");
       });
     } finally {
-      if (!openedOAuth) setBusy(false);
+      if (!opened) setBusy(false);
     }
   };
 

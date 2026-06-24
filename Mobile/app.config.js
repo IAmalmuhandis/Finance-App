@@ -36,6 +36,7 @@ module.exports = {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? "",
     googleWebClientId:
       (process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || "").trim(),
+    googleAndroidClientId: (process.env.EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID || "").trim(),
     expoAuthProxyPath: (process.env.EXPO_PUBLIC_EXPO_AUTH_PROXY_PATH || "").trim(),
     eas: {
       projectId: "46ca06fd-aaaf-4527-af4a-d638608df24c",
