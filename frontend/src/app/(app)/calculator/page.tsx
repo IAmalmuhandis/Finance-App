@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, RotateCcw, Save } from "lucide-react";
 import { toast } from "sonner";
-import { BucketTree, RecommendedBuckets } from "@/components/calculator/BucketTree";
+import { BucketTree } from "@/components/calculator/BucketTree";
 import { Button } from "@/components/ui/button";
 import {
   type CalculatorMode,
   type FormulaNode,
   STORAGE_CUSTOM_FORMULA,
   STORAGE_INCOME,
+  STORAGE_RECOMMENDED_FORMULA,
   computeAllocations,
   formatNaira,
   formatNairaInput,
@@ -30,6 +31,17 @@ function loadCustomFormula(): FormulaNode[] {
   return getDefaultCustomFormula();
 }
 
+function loadRecommendedFormula(): FormulaNode[] {
+  if (typeof window === "undefined") return getRecommendedFormula();
+  try {
+    const raw = localStorage.getItem(STORAGE_RECOMMENDED_FORMULA);
+    if (raw) return JSON.parse(raw) as FormulaNode[];
+  } catch {
+    /* ignore */
+  }
+  return getRecommendedFormula();
+}
+
 function validateTree(nodes: FormulaNode[]): boolean {
   if (!isSiblingsValid(nodes)) return false;
   for (const n of nodes) {
@@ -44,6 +56,7 @@ export default function CalculatorPage() {
   const [mode, setMode] = useState<CalculatorMode>("recommended");
   const [incomeInput, setIncomeInput] = useState("");
   const [customFormula, setCustomFormula] = useState<FormulaNode[]>(getDefaultCustomFormula);
+  const [recommendedFormula, setRecommendedFormula] = useState<FormulaNode[]>(getRecommendedFormula);
   const [saving, setSaving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -54,19 +67,35 @@ export default function CalculatorPage() {
       if (n > 0) setIncomeInput(formatNairaInput(String(n)));
     }
     setCustomFormula(loadCustomFormula());
+    setRecommendedFormula(loadRecommendedFormula());
     setHydrated(true);
   }, []);
 
   const gross = parseNairaInput(incomeInput);
-  const formula = mode === "recommended" ? getRecommendedFormula() : customFormula;
+  const formula = mode === "recommended" ? recommendedFormula : customFormula;
   const allocations = useMemo(() => computeAllocations(gross, formula), [gross, formula]);
   const canSave = gross > 0 && validateTree(formula) && allocations.length > 0;
 
   useEffect(() => {
     if (!hydrated) return;
     if (gross > 0) localStorage.setItem(STORAGE_INCOME, String(gross));
-    if (mode === "custom") localStorage.setItem(STORAGE_CUSTOM_FORMULA, JSON.stringify(customFormula));
+    if (mode === "custom") {
+      localStorage.setItem(STORAGE_CUSTOM_FORMULA, JSON.stringify(customFormula));
+    }
   }, [gross, customFormula, mode, hydrated]);
+
+  // Persist recommended formula changes
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(STORAGE_RECOMMENDED_FORMULA, JSON.stringify(recommendedFormula));
+  }, [recommendedFormula, hydrated]);
+
+  function restoreRecommendedDefaults() {
+    const defaults = getRecommendedFormula();
+    setRecommendedFormula(defaults);
+    localStorage.removeItem(STORAGE_RECOMMENDED_FORMULA);
+    toast.success("Recommended formula restored to defaults");
+  }
 
   async function saveEntry() {
     if (!canSave) return;
@@ -145,21 +174,35 @@ export default function CalculatorPage() {
           ))}
         </div>
         {mode === "recommended" ? (
-          <p className="mt-2 text-xs text-text-muted">
-            Default split: one third investment, one third personal needs, and the final third divided equally
-            between family, sadaqah, and emergency.
-          </p>
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-xs text-text-muted">
+              Sadaqah off the top, then Investment, Personal Consumption, and a Final Third split three ways.
+              Edit any bucket below — changes are saved automatically.
+            </p>
+            <button
+              type="button"
+              onClick={restoreRecommendedDefaults}
+              className="ml-3 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-secondary"
+            >
+              <RotateCcw size={11} aria-hidden />
+              Restore defaults
+            </button>
+          </div>
         ) : (
           <p className="mt-2 text-xs text-text-muted">
-            Build your own nested formula. Child percentages are relative to their parent and must sum to 100% per
-            group.
+            Build your own formula. Percentages are shown as % of total income. Child groups must sum to 100%.
           </p>
         )}
       </section>
 
       <section className="mb-6 space-y-3" aria-live="polite">
         {mode === "recommended" ? (
-          <RecommendedBuckets gross={gross} />
+          <BucketTree
+            nodes={recommendedFormula}
+            gross={gross}
+            editable
+            onChange={setRecommendedFormula}
+          />
         ) : (
           <BucketTree nodes={customFormula} gross={gross} editable onChange={setCustomFormula} />
         )}

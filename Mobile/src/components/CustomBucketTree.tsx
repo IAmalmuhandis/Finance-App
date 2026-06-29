@@ -13,6 +13,19 @@ import { THEME } from "../theme";
 
 const TYPES: BucketType[] = ["Keep", "Spend", "Give"];
 
+const TYPE_BG: Record<BucketType, string> = {
+  Keep: "#D6F0E8",
+  Spend: "#FFF3CC",
+  Give: "#FFE4E1",
+};
+const TYPE_TEXT: Record<BucketType, string> = {
+  Keep: "#1B6B4A",
+  Spend: "#7A5A00",
+  Give: "#B03030",
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function updateAtPath(nodes: FormulaNode[], path: number[], updater: (n: FormulaNode) => FormulaNode): FormulaNode[] {
   if (!path.length) return nodes;
   const [idx, ...rest] = path;
@@ -29,109 +42,175 @@ function removeAtPath(nodes: FormulaNode[], path: number[]): FormulaNode[] {
   return nodes.map((n, i) => (i !== idx ? n : { ...n, children: removeAtPath(n.children ?? [], rest) }));
 }
 
-function SiblingHint({ nodes }: { nodes: FormulaNode[] }) {
+function effectiveOfPath(roots: FormulaNode[], path: number[]): number {
+  let eff = 100;
+  let nodes = roots;
+  for (let i = 0; i < path.length; i++) {
+    const node = nodes[path[i]];
+    eff = (eff * node.relativePercent) / 100;
+    nodes = node.children ?? [];
+  }
+  return eff;
+}
+
+// ── Remaining bar ─────────────────────────────────────────────────────────────
+
+function RemainingBar({ nodes }: { nodes: FormulaNode[] }) {
   const delta = siblingsDelta(nodes);
-  if (Math.abs(delta) < 0.01) return null;
-  const off = Math.abs(delta).toFixed(1);
+  const used = nodes.reduce((s, n) => s + n.relativePercent, 0);
+  const remaining = 100 - used;
+  const isBalanced = Math.abs(delta) < 0.01;
+  const isOver = delta > 0.01;
+
+  const color = isBalanced ? THEME.colors.primary : isOver ? THEME.colors.accentAlert : "#D4A017";
+  const bgColor = isBalanced ? "#E8F5F0" : isOver ? "#FFE8E8" : "#FFF8E0";
+
   return (
-    <Text style={styles.hint}>
-      {delta > 0 ? `${off}% over 100%` : `${off}% under 100%`} — adjust sibling percentages.
-    </Text>
+    <View style={[styles.remainBar, { backgroundColor: bgColor, borderColor: color + "44" }]}>
+      <View style={styles.remainTop}>
+        <Text style={[styles.remainLabel, { color }]}>
+          {isBalanced ? "Balanced" : isOver ? `${Math.abs(delta).toFixed(1)}% over 100%` : `${remaining.toFixed(1)}% remaining`}
+        </Text>
+        <Text style={styles.remainPercent}>{used.toFixed(1)}% / 100%</Text>
+      </View>
+      <View style={styles.remainTrack}>
+        <View style={[styles.remainFill, { width: `${Math.min(used, 100)}%` as `${number}%`, backgroundColor: color }]} />
+      </View>
+    </View>
   );
 }
 
-function Row({
+// ── Single bucket card ────────────────────────────────────────────────────────
+
+function BucketCard({
   node,
   path,
   gross,
-  parentEffective,
   roots,
   onRootChange,
+  depth,
 }: {
   node: FormulaNode;
   path: number[];
   gross: number;
-  parentEffective: number;
   roots: FormulaNode[];
   onRootChange: (n: FormulaNode[]) => void;
+  depth: number;
 }) {
-  const [open, setOpen] = useState(true);
+  const [childOpen, setChildOpen] = useState(true);
   const hasChildren = Boolean(node.children?.length);
-  const effective = (parentEffective * node.relativePercent) / 100;
+  const effective = effectiveOfPath(roots, path);
+  const amount = gross > 0 ? Math.round((gross * effective) / 100) : 0;
+
   const patch = (up: (n: FormulaNode) => FormulaNode) => onRootChange(updateAtPath(roots, path, up));
-  const amount = Math.round((gross * effective) / 100);
+
+  const bucketType = node.type ?? "Keep";
 
   return (
-    <View style={[styles.row, path.length > 0 && styles.nested]}>
-      <View style={styles.rowHead}>
-        {hasChildren ? (
-          <TouchableOpacity onPress={() => setOpen((v) => !v)} hitSlop={8}>
-            <Text style={styles.chevron}>{open ? "▼" : "▶"}</Text>
+    <View style={[styles.card, depth > 0 && styles.nested]}>
+      {/* Top row */}
+      <View style={styles.cardTop}>
+        {!hasChildren ? (
+          <TouchableOpacity
+            onPress={() => {
+              const i = TYPES.indexOf(bucketType);
+              patch((n) => ({ ...n, type: TYPES[(i + 1) % TYPES.length] }));
+            }}
+            style={[styles.typePill, { backgroundColor: TYPE_BG[bucketType] }]}
+          >
+            <Text style={[styles.typeText, { color: TYPE_TEXT[bucketType] }]}>{bucketType}</Text>
           </TouchableOpacity>
         ) : (
-          <View style={{ width: 16 }} />
+          <TouchableOpacity
+            onPress={() => setChildOpen((v) => !v)}
+            style={[styles.typePill, { backgroundColor: THEME.colors.elevated }]}
+          >
+            <Text style={[styles.typeText, { color: THEME.colors.textMuted }]}>Group {childOpen ? "▾" : "▸"}</Text>
+          </TouchableOpacity>
         )}
+
         <TextInput
           style={styles.nameInput}
           value={node.name}
           onChangeText={(t) => patch((n) => ({ ...n, name: t }))}
+          placeholderTextColor={THEME.colors.textMuted}
         />
+
         {!hasChildren ? (
           <TouchableOpacity
-            style={styles.typeBtn}
-            onPress={() => {
-              const i = TYPES.indexOf(node.type ?? "Keep");
-              patch((n) => ({ ...n, type: TYPES[(i + 1) % TYPES.length] }));
-            }}
+            onPress={() =>
+              patch((n) => ({
+                ...n,
+                type: undefined,
+                children: [
+                  { id: newId(), name: "Part 1", relativePercent: 50, type: "Keep" },
+                  { id: newId(), name: "Part 2", relativePercent: 50, type: "Keep" },
+                ],
+              }))
+            }
+            hitSlop={8}
+            style={styles.iconBtn}
           >
-            <Text style={styles.typeText}>{node.type ?? "Keep"}</Text>
+            <GitBranch size={14} color={THEME.colors.textMuted} />
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity onPress={() => onRootChange(removeAtPath(roots, path))} hitSlop={8}>
-          <Trash2 size={16} color={THEME.colors.textMuted} />
+
+        <TouchableOpacity onPress={() => onRootChange(removeAtPath(roots, path))} hitSlop={8} style={styles.iconBtn}>
+          <Trash2 size={14} color={THEME.colors.accentAlert} />
         </TouchableOpacity>
       </View>
 
+      {/* Bottom row: % input + amount */}
       {!hasChildren ? (
-        <View style={styles.meta}>
-          <TextInput
-            style={styles.pctInput}
-            keyboardType="decimal-pad"
-            value={String(Math.round(node.relativePercent * 10) / 10)}
-            onChangeText={(t) => patch((n) => ({ ...n, relativePercent: Number(t) || 0 }))}
-          />
-          <Text style={styles.metaText}>% of parent · {formatPercent(effective)} · {formatNaira(amount)}</Text>
+        <View style={styles.cardBottom}>
+          <View style={styles.pctRow}>
+            <TextInput
+              style={styles.pctInput}
+              keyboardType="decimal-pad"
+              value={String(Math.round(effective * 10) / 10)}
+              onChangeText={(t) => {
+                const newEff = Number(t) || 0;
+                const parentEff = depth === 0 ? 100 : effectiveOfPath(roots, path.slice(0, -1));
+                const newRel = parentEff > 0 ? (newEff * 100) / parentEff : 0;
+                patch((n) => ({ ...n, relativePercent: Math.round(newRel * 10) / 10 }));
+              }}
+            />
+            <Text style={styles.pctLabel}>% of income</Text>
+          </View>
+          {gross > 0 ? <Text style={styles.amount}>{formatNaira(amount)}</Text> : null}
         </View>
       ) : (
-        <Text style={styles.metaText}>Children sum · {formatPercent(effective)} of income</Text>
+        <View style={styles.cardBottom}>
+          <Text style={styles.pctLabel}>{formatPercent(effective)} of income</Text>
+          {gross > 0 ? <Text style={styles.amount}>{formatNaira(amount)}</Text> : null}
+        </View>
       )}
 
-      {!hasChildren ? (
-        <TouchableOpacity style={styles.splitBtn} onPress={() => patch((n) => ({
-          ...n,
-          type: undefined,
-          children: [
-            { id: newId(), name: "Part 1", relativePercent: 50, type: "Keep" },
-            { id: newId(), name: "Part 2", relativePercent: 50, type: "Keep" },
-          ],
-        }))}>
-          <GitBranch size={14} color={THEME.colors.textSecondary} />
-          <Text style={styles.splitText}>Split</Text>
-        </TouchableOpacity>
-      ) : null}
-
-      {hasChildren && open ? (
-        <View style={styles.children}>
-          <SiblingHint nodes={node.children!} />
-          <CustomBucketTree nodes={node.children!} gross={gross} parentEffective={effective} roots={roots} onRootChange={onRootChange} parentPath={path} />
+      {/* Children */}
+      {hasChildren && childOpen ? (
+        <View style={styles.childrenWrap}>
+          <RemainingBar nodes={node.children!} />
+          {node.children!.map((child, idx) => (
+            <BucketCard
+              key={child.id}
+              node={child}
+              path={[...path, idx]}
+              gross={gross}
+              roots={roots}
+              onRootChange={onRootChange}
+              depth={depth + 1}
+            />
+          ))}
           <TouchableOpacity
             style={styles.addSub}
-            onPress={() => patch((n) => ({
-              ...n,
-              children: [...(n.children ?? []), { id: newId(), name: "New bucket", relativePercent: 0, type: "Keep" }],
-            }))}
+            onPress={() =>
+              patch((n) => ({
+                ...n,
+                children: [...(n.children ?? []), { id: newId(), name: "New bucket", relativePercent: 0, type: "Keep" }],
+              }))
+            }
           >
-            <Plus size={14} color={THEME.colors.textSecondary} />
+            <Plus size={13} color={THEME.colors.textSecondary} />
             <Text style={styles.addText}>Add sub-bucket</Text>
           </TouchableOpacity>
         </View>
@@ -140,37 +219,39 @@ function Row({
   );
 }
 
+// ── CustomBucketTree (exported) ───────────────────────────────────────────────
+
 export function CustomBucketTree({
   nodes,
   gross,
   roots,
   onRootChange,
   parentPath = [],
-  parentEffective = 100,
 }: {
   nodes: FormulaNode[];
   gross: number;
   roots?: FormulaNode[];
   onRootChange: (n: FormulaNode[]) => void;
   parentPath?: number[];
-  parentEffective?: number;
 }) {
   const treeRoots = roots ?? nodes;
+  const isRoot = parentPath.length === 0;
+
   return (
     <View>
-      {parentPath.length === 0 ? <SiblingHint nodes={nodes} /> : null}
+      {isRoot ? <RemainingBar nodes={nodes} /> : null}
       {nodes.map((node, idx) => (
-        <Row
+        <BucketCard
           key={node.id}
           node={node}
           path={[...parentPath, idx]}
           gross={gross}
-          parentEffective={parentEffective}
           roots={treeRoots}
           onRootChange={onRootChange}
+          depth={parentPath.length}
         />
       ))}
-      {parentPath.length === 0 ? (
+      {isRoot ? (
         <TouchableOpacity
           style={styles.addRoot}
           onPress={() => onRootChange([...treeRoots, { id: newId(), name: "New bucket", relativePercent: 0, type: "Keep" }])}
@@ -184,48 +265,35 @@ export function CustomBucketTree({
 }
 
 const styles = StyleSheet.create({
-  row: {
+  card: {
     backgroundColor: THEME.colors.surface,
     borderWidth: 1,
     borderColor: THEME.colors.border,
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 14,
+    padding: 12,
     marginBottom: 8,
   },
-  nested: { marginLeft: 8, borderLeftWidth: 2, borderLeftColor: THEME.colors.border },
-  rowHead: { flexDirection: "row", alignItems: "center", gap: 8 },
-  chevron: { color: THEME.colors.textMuted, fontSize: 12, width: 16 },
+  nested: { marginLeft: 12, borderLeftWidth: 2, borderLeftColor: THEME.colors.border },
+  cardTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  typePill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  typeText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   nameInput: {
     flex: 1,
     color: THEME.colors.text,
     fontSize: 14,
-    paddingVertical: 4,
+    fontFamily: THEME.fonts.uiMedium,
+    paddingVertical: 2,
     borderBottomWidth: 1,
     borderBottomColor: THEME.colors.border,
   },
-  typeBtn: {
-    backgroundColor: THEME.colors.elevated,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  typeText: { color: THEME.colors.textMuted, fontSize: 10, fontWeight: "600" },
-  meta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" },
-  pctInput: {
-    width: 48,
-    color: THEME.colors.text,
-    backgroundColor: THEME.colors.input,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    fontSize: 13,
-  },
-  metaText: { color: THEME.colors.textSecondary, fontSize: 12, flex: 1 },
-  splitBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  splitText: { color: THEME.colors.textSecondary, fontSize: 12 },
-  children: { marginTop: 8 },
-  hint: { color: THEME.colors.accentAlert, fontSize: 12, marginBottom: 6, fontFamily: THEME.fonts.ui },
-  addSub: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 },
+  iconBtn: { padding: 4 },
+  cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, flexWrap: "wrap", gap: 8 },
+  pctRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: THEME.colors.input, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  pctInput: { width: 44, color: THEME.colors.text, fontSize: 13, fontFamily: THEME.fonts.uiMedium, textAlign: "right" },
+  pctLabel: { color: THEME.colors.textMuted, fontSize: 12, fontFamily: THEME.fonts.ui },
+  amount: { color: THEME.colors.text, fontSize: 14, fontFamily: THEME.fonts.uiMedium },
+  childrenWrap: { marginTop: 10 },
+  addSub: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6 },
   addRoot: {
     flexDirection: "row",
     alignItems: "center",
@@ -234,8 +302,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: "dashed",
     borderColor: THEME.colors.border,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 12,
+    marginTop: 4,
   },
-  addText: { color: THEME.colors.textSecondary, fontSize: 13 },
+  addText: { color: THEME.colors.textSecondary, fontSize: 13, fontFamily: THEME.fonts.ui },
+  // remaining bar
+  remainBar: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 10,
+  },
+  remainTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  remainLabel: { fontSize: 12, fontFamily: THEME.fonts.uiSemibold },
+  remainPercent: { fontSize: 12, color: THEME.colors.textMuted, fontFamily: THEME.fonts.ui },
+  remainTrack: { height: 4, backgroundColor: THEME.colors.elevated, borderRadius: 4, overflow: "hidden" },
+  remainFill: { height: 4, borderRadius: 4 },
 });

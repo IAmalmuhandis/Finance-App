@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calculator, LogOut, Menu, TrendingUp, X } from "lucide-react";
+import { BarChart2, Calculator, LogOut, Menu, TrendingUp, X } from "lucide-react";
 import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { ArzoBrand } from "@/components/ArzoBrand";
@@ -10,6 +10,7 @@ import { ArzoBrand } from "@/components/ArzoBrand";
 const nav = [
   { href: "/calculator", label: "Calculator", icon: Calculator },
   { href: "/progress", label: "Progress", icon: TrendingUp },
+  { href: "/wealth-guide", label: "Wealth Guide", icon: BarChart2 },
 ];
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {

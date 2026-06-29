@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, GitBranch, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, GitBranch, RotateCcw } from "lucide-react";
 import {
   type BucketType,
   type FormulaNode,
@@ -18,14 +18,13 @@ import { cn } from "@/lib/utils";
 
 const BUCKET_TYPES: BucketType[] = ["Keep", "Spend", "Give"];
 
-type Props = {
-  nodes: FormulaNode[];
-  gross: number;
-  editable: boolean;
-  onChange: (nodes: FormulaNode[]) => void;
-  depth?: number;
-  parentPath?: number[];
+const TYPE_COLORS: Record<BucketType, string> = {
+  Keep: "bg-jade/15 text-jade",
+  Spend: "bg-gold/30 text-amber-700",
+  Give: "bg-accent-red/10 text-accent-red",
 };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function updateAtPath(nodes: FormulaNode[], path: number[], updater: (n: FormulaNode) => FormulaNode): FormulaNode[] {
   if (path.length === 0) return nodes;
@@ -46,251 +45,272 @@ function removeAtPath(nodes: FormulaNode[], path: number[]): FormulaNode[] {
   });
 }
 
-function SiblingValidation({ nodes }: { nodes: FormulaNode[] }) {
+/** Compute effective % of gross income for a node at the given path */
+function effectiveOfPath(roots: FormulaNode[], path: number[]): number {
+  let eff = 100;
+  let nodes = roots;
+  for (let i = 0; i < path.length; i++) {
+    const node = nodes[path[i]];
+    eff = (eff * node.relativePercent) / 100;
+    nodes = node.children ?? [];
+  }
+  return eff;
+}
+
+// ── Remaining bar ─────────────────────────────────────────────────────────────
+
+function RemainingBar({ nodes }: { nodes: FormulaNode[] }) {
   const delta = siblingsDelta(nodes);
-  if (Math.abs(delta) < 0.01) return null;
-  const off = Math.abs(delta).toFixed(1);
+  const used = nodes.reduce((s, n) => s + n.relativePercent, 0);
+  const remaining = 100 - used;
+  const isBalanced = Math.abs(delta) < 0.01;
+  const isOver = delta > 0.01;
+
   return (
-    <p className="rounded-[12px] border border-accent-amber/40 bg-gold-soft px-3 py-2 text-xs text-accent-red">
-      {delta > 0
-        ? `This group is ${off}% over 100% — adjust sibling percentages to balance.`
-        : `This group is ${off}% under 100% — adjust sibling percentages to balance.`}
-    </p>
+    <div className={cn(
+      "rounded-[14px] border p-3 mb-3",
+      isBalanced ? "border-jade/30 bg-jade/5" : isOver ? "border-accent-red/40 bg-accent-red/5" : "border-accent-amber/40 bg-gold-soft"
+    )}>
+      <div className="flex items-center justify-between text-xs mb-1.5">
+        <span className={cn("font-medium", isBalanced ? "text-jade" : isOver ? "text-accent-red" : "text-accent-amber")}>
+          {isBalanced ? "Perfectly balanced" : isOver ? `${Math.abs(delta).toFixed(1)}% over 100%` : `${remaining.toFixed(1)}% remaining`}
+        </span>
+        <span className="tabular-nums text-text-muted">{used.toFixed(1)}% / 100%</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-bg-elevated overflow-hidden">
+        <div
+          className={cn("h-full rounded-full transition-all", isBalanced ? "bg-jade" : isOver ? "bg-accent-red" : "bg-accent-amber")}
+          style={{ width: `${Math.min(used, 100)}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
-function BucketRow({
+// ── Single bucket card ────────────────────────────────────────────────────────
+
+function BucketCard({
   node,
   path,
   gross,
-  parentEffective,
-  editable,
-  onRootChange,
   rootNodes,
+  onRootChange,
+  depth,
 }: {
   node: FormulaNode;
   path: number[];
   gross: number;
-  parentEffective: number;
-  editable: boolean;
-  onRootChange: (nodes: FormulaNode[]) => void;
   rootNodes: FormulaNode[];
+  onRootChange: (n: FormulaNode[]) => void;
+  depth: number;
 }) {
-  const [open, setOpen] = useState(true);
-  const hasChildren = Boolean(node.children && node.children.length > 0);
-  const effective = (parentEffective * node.relativePercent) / 100;
-  const amount = hasChildren
-    ? collectLeaves([node], parentEffective).reduce((s, l) => s + Math.round((gross * l.effectivePercent) / 100), 0)
-    : Math.round((gross * effective) / 100);
+  const [childOpen, setChildOpen] = useState(true);
+  const hasChildren = Boolean(node.children?.length);
+  const effective = effectiveOfPath(rootNodes, path);
 
   const patch = (updater: (n: FormulaNode) => FormulaNode) =>
     onRootChange(updateAtPath(rootNodes, path, updater));
 
+  const amount = gross > 0 ? Math.round((gross * effective) / 100) : 0;
+
   return (
-    <div className="space-y-2">
-      <div
-        className={cn(
-          "rounded-[20px] border border-border-subtle bg-bg-surface px-3 py-2.5",
-          path.length > 0 && "ml-3 border-l-2 border-l-border-strong"
-        )}
-      >
-        <div className="flex flex-wrap items-start gap-2">
-          {hasChildren ? (
+    <div className={cn("space-y-2", depth > 0 && "ml-4 border-l-2 border-border-subtle pl-3")}>
+      <div className="rounded-[16px] border border-border-subtle bg-bg-surface p-3">
+        {/* Top row: type pill + name + delete */}
+        <div className="flex items-center gap-2">
+          {!hasChildren ? (
             <button
               type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="mt-0.5 shrink-0 text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade"
-              aria-expanded={open}
-              aria-label={open ? "Collapse" : "Expand"}
+              onClick={() => {
+                const i = BUCKET_TYPES.indexOf(node.type ?? "Keep");
+                patch((n) => ({ ...n, type: BUCKET_TYPES[(i + 1) % BUCKET_TYPES.length] }));
+              }}
+              className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition", TYPE_COLORS[node.type ?? "Keep"])}
+              title="Click to change type"
             >
-              {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              {node.type ?? "Keep"}
             </button>
           ) : (
-            <span className="w-4 shrink-0" aria-hidden />
-          )}
-
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              {editable ? (
-                <input
-                  className="min-w-[8rem] flex-1 rounded-md border border-border-subtle bg-bg-input px-2 py-1 text-sm text-text-primary focus:border-border-strong focus:outline-none focus:ring-1 focus:ring-jade/30"
-                  value={node.name}
-                  onChange={(e) => patch((n) => ({ ...n, name: e.target.value }))}
-                  aria-label="Bucket name"
-                />
-              ) : (
-                <span className="text-sm font-medium text-text-primary">{node.name}</span>
-              )}
-
-              {!hasChildren && editable ? (
-                <select
-                  className="rounded-md border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-jade/30"
-                  value={node.type ?? "Keep"}
-                  onChange={(e) => patch((n) => ({ ...n, type: e.target.value as BucketType }))}
-                  aria-label={`Type for ${node.name}`}
-                >
-                  {BUCKET_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              ) : !hasChildren ? (
-                <span className="rounded-full bg-bg-elevated px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-muted">
-                  {node.type ?? "Keep"}
-                </span>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary">
-              {hasChildren ? (
-                <span>Sum of children · {formatPercent(effective)} of income</span>
-              ) : (
-                <>
-                  {editable ? (
-                    <label className="flex items-center gap-1.5">
-                      <span className="text-text-muted">Share</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.1}
-                        className="w-16 rounded-md border border-border-subtle bg-bg-input px-2 py-0.5 text-text-primary focus:outline-none focus:ring-1 focus:ring-jade/30"
-                        value={Math.round(node.relativePercent * 10) / 10}
-                        onChange={(e) =>
-                          patch((n) => ({ ...n, relativePercent: Number(e.target.value) || 0 }))
-                        }
-                        aria-label={`Relative percent for ${node.name}`}
-                      />
-                      <span>% of parent</span>
-                    </label>
-                  ) : (
-                    <span>{formatPercent(node.relativePercent)} of parent</span>
-                  )}
-                  <span>·</span>
-                  <span>{formatPercent(effective)} of income</span>
-                </>
-              )}
-              <span className="ml-auto font-medium text-text-primary">{formatNaira(hasChildren ? amount : Math.round((gross * effective) / 100))}</span>
-            </div>
-          </div>
-
-          {editable ? (
-            <div className="flex shrink-0 gap-1">
-              {!hasChildren ? (
-                <button
-                  type="button"
-                  title="Split into sub-buckets"
-                  onClick={() =>
-                    patch((n) => ({
-                      ...n,
-                      type: undefined,
-                      children: [
-                        { id: newId(), name: "Part 1", relativePercent: 50, type: "Keep" },
-                        { id: newId(), name: "Part 2", relativePercent: 50, type: "Keep" },
-                      ],
-                    }))
-                  }
-                  className="rounded-md p-1.5 text-text-muted hover:bg-bg-elevated hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade"
-                  aria-label={`Split ${node.name}`}
-                >
-                  <GitBranch size={14} />
-                </button>
-              ) : null}
-              <button
-                type="button"
-                title="Remove bucket"
-                onClick={() => onRootChange(removeAtPath(rootNodes, path))}
-                className="rounded-md p-1.5 text-text-muted hover:bg-accent-red/10 hover:text-accent-red focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade"
-                aria-label={`Remove ${node.name}`}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {hasChildren && open ? (
-        <div className="space-y-2 pl-2">
-          <SiblingValidation nodes={node.children!} />
-          <BucketTree
-            nodes={node.children!}
-            gross={gross}
-            editable={editable}
-            onChange={onRootChange}
-            depth={path.length + 1}
-            parentPath={path}
-            rootNodes={rootNodes}
-            parentEffective={effective}
-          />
-          {editable ? (
             <button
               type="button"
+              onClick={() => setChildOpen((v) => !v)}
+              className="shrink-0 rounded-full bg-bg-elevated px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted"
+            >
+              Group {childOpen ? "▾" : "▸"}
+            </button>
+          )}
+
+          <input
+            className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium text-text-primary focus:border-border-subtle focus:bg-bg-input focus:outline-none"
+            value={node.name}
+            onChange={(e) => patch((n) => ({ ...n, name: e.target.value }))}
+            aria-label="Bucket name"
+          />
+
+          {!hasChildren ? (
+            <button
+              type="button"
+              title="Split into sub-buckets"
               onClick={() =>
                 patch((n) => ({
                   ...n,
-                  children: [...(n.children ?? []), { id: newId(), name: "New bucket", relativePercent: 0, type: "Keep" }],
+                  type: undefined,
+                  children: [
+                    { id: newId(), name: "Part 1", relativePercent: 50, type: "Keep" },
+                    { id: newId(), name: "Part 2", relativePercent: 50, type: "Keep" },
+                  ],
                 }))
               }
-              className="flex items-center gap-1.5 rounded-lg border border-dashed border-border-subtle px-3 py-2 text-xs text-text-secondary hover:border-border-strong hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade"
+              className="shrink-0 rounded-md p-1 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+              aria-label="Split"
             >
-              <Plus size={14} aria-hidden />
-              Add sub-bucket
+              <GitBranch size={13} />
             </button>
           ) : null}
+
+          <button
+            type="button"
+            onClick={() => onRootChange(removeAtPath(rootNodes, path))}
+            className="shrink-0 rounded-md p-1 text-text-muted hover:bg-accent-red/10 hover:text-accent-red"
+            aria-label="Remove"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+
+        {/* Bottom row: % of income input + naira amount */}
+        {!hasChildren ? (
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-md border border-border-subtle bg-bg-input px-2 py-1">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                className="w-14 bg-transparent text-right text-sm tabular-nums text-text-primary focus:outline-none"
+                value={Math.round(effective * 10) / 10}
+                onChange={(e) => {
+                  const newEff = Number(e.target.value) || 0;
+                  // Convert effective % back to relative % of parent
+                  const parentEff = depth === 0 ? 100 : effectiveOfPath(rootNodes, path.slice(0, -1));
+                  const newRel = parentEff > 0 ? (newEff * 100) / parentEff : 0;
+                  patch((n) => ({ ...n, relativePercent: Math.round(newRel * 10) / 10 }));
+                }}
+                aria-label={`Percentage of income for ${node.name}`}
+              />
+              <span className="text-xs text-text-muted">% of income</span>
+            </div>
+            {gross > 0 ? (
+              <span className="ml-auto text-sm font-medium tabular-nums text-text-primary">{formatNaira(amount)}</span>
+            ) : null}
+          </div>
+        ) : (
+          <div className="mt-1.5 flex items-center justify-between">
+            <span className="text-xs text-text-muted">{formatPercent(effective)} of income</span>
+            {gross > 0 ? (
+              <span className="text-sm font-medium tabular-nums text-text-primary">{formatNaira(amount)}</span>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* Children */}
+      {hasChildren && childOpen ? (
+        <div className="space-y-2">
+          <RemainingBar nodes={node.children!} />
+          {node.children!.map((child, idx) => (
+            <BucketCard
+              key={child.id}
+              node={child}
+              path={[...path, idx]}
+              gross={gross}
+              rootNodes={rootNodes}
+              onRootChange={onRootChange}
+              depth={depth + 1}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              patch((n) => ({
+                ...n,
+                children: [...(n.children ?? []), { id: newId(), name: "New bucket", relativePercent: 0, type: "Keep" }],
+              }))
+            }
+            className="flex items-center gap-1.5 rounded-lg border border-dashed border-border-subtle px-3 py-2 text-xs text-text-secondary hover:border-border-strong hover:text-text-primary"
+          >
+            <Plus size={13} aria-hidden />
+            Add sub-bucket
+          </button>
         </div>
       ) : null}
-
-      {!hasChildren ? null : null}
     </div>
   );
 }
 
-export function BucketTree({
-  nodes,
-  gross,
-  editable,
-  onChange,
-  depth = 0,
-  parentPath = [],
-  rootNodes,
-  parentEffective = 100,
-}: Props & { rootNodes?: FormulaNode[]; parentEffective?: number }) {
-  const roots = rootNodes ?? nodes;
-  const onRootChange = onChange;
+// ── BucketTree (exported) ─────────────────────────────────────────────────────
+
+type BucketTreeProps = {
+  nodes: FormulaNode[];
+  gross: number;
+  editable?: boolean;
+  onChange: (nodes: FormulaNode[]) => void;
+};
+
+export function BucketTree({ nodes, gross, editable = true, onChange }: BucketTreeProps) {
+  if (!editable) {
+    // Readonly flat view — same as RecommendedBuckets but for arbitrary formula
+    const leaves = collectLeaves(nodes);
+    const allocations = computeAllocations(gross, nodes);
+    const amountByName = Object.fromEntries(allocations.map((a) => [a.name, a.amount]));
+    return (
+      <div className="space-y-2">
+        {leaves.map((leaf) => (
+          <div
+            key={leaf.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-[20px] border border-border-subtle bg-bg-surface px-4 py-3"
+          >
+            <div className="flex items-start gap-3">
+              <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: ALLOCATION_COLORS[leaf.name] ?? "#6B7A6F" }} aria-hidden />
+              <div>
+                <p className="text-sm font-medium text-text-primary">{leaf.name}</p>
+                <p className="text-xs text-text-secondary">{formatPercent(leaf.effectivePercent)} · <span className="text-text-muted">{leaf.type}</span></p>
+              </div>
+            </div>
+            <p className="text-sm font-medium tabular-nums text-text-primary">{formatNaira(amountByName[leaf.name] ?? 0)}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-2">
-      {depth === 0 ? <SiblingValidation nodes={nodes} /> : null}
-      {nodes.map((node, idx) => {
-        const path = [...parentPath, idx];
-        return (
-          <BucketRow
-            key={node.id}
-            node={node}
-            path={path}
-            gross={gross}
-            parentEffective={parentEffective}
-            editable={editable}
-            onRootChange={onRootChange}
-            rootNodes={roots}
-          />
-        );
-      })}
-      {editable && depth === 0 ? (
-        <button
-          type="button"
-          onClick={() => onRootChange([...roots, { id: newId(), name: "New bucket", relativePercent: 0, type: "Keep" }])}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border-subtle py-2.5 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade"
-        >
-          <Plus size={16} aria-hidden />
-          Add bucket
-        </button>
-      ) : null}
+    <div className="space-y-3">
+      <RemainingBar nodes={nodes} />
+      {nodes.map((node, idx) => (
+        <BucketCard
+          key={node.id}
+          node={node}
+          path={[idx]}
+          gross={gross}
+          rootNodes={nodes}
+          onRootChange={onChange}
+          depth={0}
+        />
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...nodes, { id: newId(), name: "New bucket", relativePercent: 0, type: "Keep" }])}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border-subtle py-2.5 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary"
+      >
+        <Plus size={16} aria-hidden />
+        Add bucket
+      </button>
     </div>
   );
 }
+
+// ── RecommendedBuckets (readonly, exported for backward-compat) ───────────────
 
 export function RecommendedBuckets({ gross }: { gross: number }) {
   const formula = getRecommendedFormula();

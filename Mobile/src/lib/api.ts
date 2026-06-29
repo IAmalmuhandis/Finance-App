@@ -295,3 +295,43 @@ export function deleteEntry(id: string) {
 export function clearAllEntries() {
   return fetchJson<{ deleted: number }>("/api/entries", { method: "DELETE" });
 }
+
+// ── Wealth Projections ────────────────────────────────────────────────────────
+
+import type { ProjectionInput, ProjectionSummary, TransactionRow } from "./wealth-guide";
+
+export type SavedProjection = {
+  id: string;
+  name?: string;
+  createdAt: string;
+  summary: ProjectionSummary;
+  input: ProjectionInput;
+};
+
+export function saveProjection(body: {
+  name?: string;
+  input: ProjectionInput;
+  summary: ProjectionSummary;
+  rows: TransactionRow[];
+}) {
+  return fetchJson<{ projection: SavedProjection }>("/api/projections", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchProjections() {
+  return fetchJson<{ projections: SavedProjection[] }>("/api/projections");
+}
+
+export function fetchProjection(id: string) {
+  return fetchJson<{ projection: SavedProjection & { rows: TransactionRow[] } }>(
+    `/api/projections/${encodeURIComponent(id)}`
+  );
+}
+
+export function deleteProjection(id: string) {
+  return fetchJson<{ ok: boolean }>(`/api/projections/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}

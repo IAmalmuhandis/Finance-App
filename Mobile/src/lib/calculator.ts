@@ -24,6 +24,10 @@ export interface Allocation {
 }
 
 const THIRD = 100 / 3;
+const SADAQAH_TOP = 20 / 3;
+const REMAINDER = 280 / 3;
+const REMAINDER_THIRD = REMAINDER / 3;
+const FINAL_CHILD = THIRD;
 
 export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -31,16 +35,17 @@ export function newId(): string {
 
 export function getRecommendedFormula(): FormulaNode[] {
   return [
-    { id: "investment", name: "Investment", relativePercent: THIRD, type: "Keep" },
-    { id: "personal-needs", name: "Personal needs", relativePercent: THIRD, type: "Spend" },
+    { id: "sadaqah-top", name: "Sadaqah", relativePercent: SADAQAH_TOP, type: "Give" },
+    { id: "investment", name: "Investment (Keep)", relativePercent: REMAINDER_THIRD, type: "Keep" },
+    { id: "personal-consumption", name: "Personal Consumption", relativePercent: REMAINDER_THIRD, type: "Spend" },
     {
       id: "final-third",
-      name: "Final third",
-      relativePercent: THIRD,
+      name: "Final Third",
+      relativePercent: REMAINDER_THIRD,
       children: [
-        { id: "family", name: "Family", relativePercent: THIRD, type: "Give" },
-        { id: "sadaqah", name: "Sadaqah", relativePercent: THIRD, type: "Give" },
-        { id: "emergency", name: "Emergency", relativePercent: THIRD, type: "Keep" },
+        { id: "family-mom", name: "Family / Mom", relativePercent: FINAL_CHILD, type: "Give" },
+        { id: "sadaqah-relatives", name: "Sadaqah Relatives", relativePercent: FINAL_CHILD, type: "Give" },
+        { id: "emergency", name: "Emergency", relativePercent: FINAL_CHILD, type: "Keep" },
       ],
     },
   ];
@@ -141,3 +146,4 @@ export function validateTree(nodes: FormulaNode[]): boolean {
 
 export const STORAGE_INCOME = "arzo-last-income";
 export const STORAGE_CUSTOM_FORMULA = "arzo-custom-formula";
+export const STORAGE_RECOMMENDED_FORMULA = "arzo-recommended-formula";

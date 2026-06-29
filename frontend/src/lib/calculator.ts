@@ -24,6 +24,11 @@ export interface Allocation {
 }
 
 const THIRD = 100 / 3;
+// New formula: Sadaqah = 20/3 % off the top; remainder = 280/3 %, split into thirds
+const SADAQAH_TOP = 20 / 3; // ~6.667%
+const REMAINDER = 280 / 3; // ~93.333%
+const REMAINDER_THIRD = REMAINDER / 3; // ~31.111% of gross (= 1/3 of remainder)
+const FINAL_CHILD = THIRD; // each child of final third is 1/3 of that group
 
 export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -31,16 +36,17 @@ export function newId(): string {
 
 export function getRecommendedFormula(): FormulaNode[] {
   return [
-    { id: "investment", name: "Investment", relativePercent: THIRD, type: "Keep" },
-    { id: "personal-needs", name: "Personal needs", relativePercent: THIRD, type: "Spend" },
+    { id: "sadaqah-top", name: "Sadaqah", relativePercent: SADAQAH_TOP, type: "Give" },
+    { id: "investment", name: "Investment (Keep)", relativePercent: REMAINDER_THIRD, type: "Keep" },
+    { id: "personal-consumption", name: "Personal Consumption", relativePercent: REMAINDER_THIRD, type: "Spend" },
     {
       id: "final-third",
-      name: "Final third",
-      relativePercent: THIRD,
+      name: "Final Third",
+      relativePercent: REMAINDER_THIRD,
       children: [
-        { id: "family", name: "Family", relativePercent: THIRD, type: "Give" },
-        { id: "sadaqah", name: "Sadaqah", relativePercent: THIRD, type: "Give" },
-        { id: "emergency", name: "Emergency", relativePercent: THIRD, type: "Keep" },
+        { id: "family-mom", name: "Family / Mom", relativePercent: FINAL_CHILD, type: "Give" },
+        { id: "sadaqah-relatives", name: "Sadaqah Relatives", relativePercent: FINAL_CHILD, type: "Give" },
+        { id: "emergency", name: "Emergency", relativePercent: FINAL_CHILD, type: "Keep" },
       ],
     },
   ];
@@ -133,3 +139,4 @@ export function formatPercent(n: number, digits = 1): string {
 
 export const STORAGE_INCOME = "arzo-last-income";
 export const STORAGE_CUSTOM_FORMULA = "arzo-custom-formula";
+export const STORAGE_RECOMMENDED_FORMULA = "arzo-recommended-formula";
