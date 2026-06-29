@@ -62,7 +62,7 @@ export async function GET(
       doc.on("error", reject);
 
       // ── Header ───────────────────────────────────────────────────────────────
-      doc.fontSize(20).fillColor(GREEN).font("Helvetica-Bold").text("Arzo — Wealth Guide");
+      doc.fontSize(20).fillColor(GREEN).font("Helvetica-Bold").text("Arzo - Wealth Guide");
       doc.moveDown(0.2);
       doc.fontSize(13).fillColor(DARK).font("Helvetica").text(name);
       doc.moveDown(0.2);
@@ -127,7 +127,7 @@ export async function GET(
       kvRow("Total Income Earned",    naira(summary.totalIncome),                                  GREEN, false);
       kvRow("Total Consumed",         naira(summary.totalConsumption),                             RED,   true);
       kvRow("Total Added Externally", naira(summary.totalAdditional),                              GREEN, false);
-      kvRow("Wealth Status",          summary.isGrowing ? "Growing ▲" : "Shrinking ▼",  summary.isGrowing ? GREEN : RED, true);
+      kvRow("Wealth Status",          summary.isGrowing ? "Growing (+)" : "Shrinking (-)",  summary.isGrowing ? GREEN : RED, true);
       if (input.targetWealth && summary.targetReachedAt != null) {
         kvRow("Target Reached At", "Transaction #" + summary.targetReachedAt, GREEN, false);
       }
@@ -168,7 +168,7 @@ export async function GET(
       // ── Footer ────────────────────────────────────────────────────────────────
       doc.moveDown(1.5);
       doc.fontSize(8).fillColor(GRAY)
-        .text("Arzo Wealth Guide  ·  finance-app-0cwn.onrender.com", { align: "center" });
+        .text("Arzo Wealth Guide  -  finance-app-0cwn.onrender.com", { align: "center" });
 
       doc.end();
     });
