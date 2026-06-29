@@ -6,10 +6,10 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   StyleSheet,
 } from "react-native";
 import { Download, Trash2 } from "lucide-react-native";
+import AppModal, { useModal } from "../components/AppModal";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import {
@@ -136,7 +136,7 @@ async function sharePdf(html: string) {
       UTI: "com.adobe.pdf",
     });
   } else {
-    Alert.alert("Saved", "PDF saved to: " + uri);
+    // Sharing not available — file is saved locally, nothing more to do
   }
 }
 
@@ -185,6 +185,7 @@ function LabeledInput({
 // ── Main screen ────────────────────────────────────────────────────────────────
 
 export default function WealthGuideScreen() {
+  const modal = useModal();
   const [initialCapitalInput, setInitialCapitalInput] = useState("");
   const [incomeRate, setIncomeRate] = useState("10");
   const [consumptionRate, setConsumptionRate] = useState("8");
@@ -215,7 +216,7 @@ export default function WealthGuideScreen() {
 
   function generate() {
     const initialCapital = parseNairaInput(initialCapitalInput);
-    if (initialCapital <= 0) { Alert.alert("Error", "Enter a valid initial capital"); return; }
+    if (initialCapital <= 0) { modal.show({ type: "error", title: "Invalid Input", message: "Enter a valid initial capital amount." }); return; }
     const n = Math.min(Math.max(1, Number(numTransactions) || 1), 500);
     const input: ProjectionInput = {
       initialCapital,
@@ -242,21 +243,31 @@ export default function WealthGuideScreen() {
       rows: rows.slice(0, 200),
     });
     setSaving(false);
-    if (res.error) { Alert.alert("Error", res.error); return; }
-    Alert.alert("Saved", "Projection saved.");
+    if (res.error) { modal.show({ type: "error", title: "Could Not Save", message: res.error }); return; }
+    modal.show({ type: "success", title: "Projection Saved!", message: "Your projection has been saved to history." });
     setProjectionName("");
     void loadHistory();
   }
 
-  async function handleDelete(id: string) {
-    const res = await api.deleteProjection(id);
-    if (res.error) { Alert.alert("Error", res.error); return; }
-    setHistory((h) => h.filter((p) => p.id !== id));
+  function confirmDelete(id: string) {
+    modal.show({
+      type: "confirm",
+      title: "Delete Projection?",
+      message: "This projection will be permanently removed from your history.",
+      confirmLabel: "Delete",
+      cancelLabel: "Keep",
+      destructive: true,
+      onConfirm: async () => {
+        const res = await api.deleteProjection(id);
+        if (res.error) { modal.show({ type: "error", title: "Error", message: res.error }); return; }
+        setHistory((h) => h.filter((p) => p.id !== id));
+      },
+    });
   }
 
   async function handleLoad(id: string) {
     const res = await api.fetchProjection(id);
-    if (res.error || !res.data) { Alert.alert("Error", res.error ?? "Could not load"); return; }
+    if (res.error || !res.data) { modal.show({ type: "error", title: "Could Not Load", message: res.error ?? "Please try again." }); return; }
     const p = res.data.projection;
     setInitialCapitalInput(formatNairaInput(String(p.input.initialCapital)));
     setIncomeRate(String(p.input.incomeRate));
@@ -268,19 +279,19 @@ export default function WealthGuideScreen() {
     setSummary(p.summary);
     setLastInput(p.input);
     setDisplayCount(INITIAL_ROWS);
-    Alert.alert("Loaded", `Projection "${p.name || "Untitled"}" loaded.`);
+    modal.show({ type: "success", title: "Projection Loaded", message: `"${p.name || "Untitled"}" is ready to view.` });
   }
 
   async function handleExport(id: string, name?: string) {
     setExportingId(id);
     try {
       const res = await api.fetchProjection(id);
-      if (res.error || !res.data) { Alert.alert("Error", res.error ?? "Could not load"); return; }
+      if (res.error || !res.data) { modal.show({ type: "error", title: "Could Not Load", message: res.error ?? "Please try again." }); return; }
       const p = res.data.projection;
       const html = buildReportHtml(p.input, p.summary, p.rows, p.name || name);
       await sharePdf(html);
     } catch {
-      Alert.alert("Error", "Could not generate PDF.");
+      modal.show({ type: "error", title: "Export Failed", message: "Could not generate the PDF. Please try again." });
     } finally {
       setExportingId(null);
     }
@@ -289,6 +300,8 @@ export default function WealthGuideScreen() {
   const displayRows = rows.slice(0, displayCount);
 
   return (
+    <>
+    {modal.node}
     <ScrollView style={styles.wrap} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Wealth Guide</Text>
       <Text style={styles.subHeading}>Project your wealth growth over time.</Text>
@@ -408,13 +421,14 @@ export default function WealthGuideScreen() {
                 ? <ActivityIndicator size="small" color={THEME.colors.primary} />
                 : <Download size={15} color={THEME.colors.primary} />}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => void handleDelete(p.id)} hitSlop={8} style={styles.deleteBtn}>
+            <TouchableOpacity onPress={() => confirmDelete(p.id)} hitSlop={8} style={styles.deleteBtn}>
               <Trash2 size={14} color={THEME.colors.accentAlert} />
             </TouchableOpacity>
           </View>
         ))
       )}
     </ScrollView>
+    </>
   );
 }
 

@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   RefreshControl,
 } from "react-native";
 import { Trash2 } from "lucide-react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import AppModal, { useModal } from "../components/AppModal";
 import * as api from "../lib/api";
 import { formatNaira } from "../lib/calculator";
 import { THEME } from "../theme";
@@ -54,6 +54,7 @@ function WealthChart({ series }: { series: { wealthRetained: number }[] }) {
 }
 
 export default function ProgressScreen() {
+  const modal = useModal();
   const [progress, setProgress] = useState<api.ProgressResponse | null>(null);
   const [entries, setEntries] = useState<api.EntryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,35 +80,36 @@ export default function ProgressScreen() {
     await load();
   }
 
-  async function deleteEntry(id: string) {
-    const res = await api.deleteEntry(id);
-    if (res.error) {
-      Alert.alert("Error", res.error);
-      return;
-    }
-    await load();
-  }
-
   function confirmDelete(id: string) {
-    Alert.alert("Delete entry?", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => void deleteEntry(id) },
-    ]);
+    modal.show({
+      type: "confirm",
+      title: "Delete Entry?",
+      message: "This entry will be permanently removed from your history.",
+      confirmLabel: "Delete",
+      cancelLabel: "Keep",
+      destructive: true,
+      onConfirm: async () => {
+        const res = await api.deleteEntry(id);
+        if (res.error) { modal.show({ type: "error", title: "Error", message: res.error }); return; }
+        await load();
+      },
+    });
   }
 
   function confirmClearAll() {
-    Alert.alert("Clear all history?", "Every saved entry will be removed.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Clear all",
-        style: "destructive",
-        onPress: async () => {
-          const res = await api.clearAllEntries();
-          if (res.error) Alert.alert("Error", res.error);
-          await load();
-        },
+    modal.show({
+      type: "confirm",
+      title: "Clear All History?",
+      message: "Every saved entry will be permanently removed. This cannot be undone.",
+      confirmLabel: "Clear All",
+      cancelLabel: "Cancel",
+      destructive: true,
+      onConfirm: async () => {
+        const res = await api.clearAllEntries();
+        if (res.error) { modal.show({ type: "error", title: "Error", message: res.error }); return; }
+        await load();
       },
-    ]);
+    });
   }
 
   if (loading && !progress) {
@@ -121,6 +123,8 @@ export default function ProgressScreen() {
   const empty = (progress?.entryCount ?? 0) === 0;
 
   return (
+    <>
+    {modal.node}
     <ScrollView
       style={styles.wrap}
       contentContainerStyle={styles.content}
@@ -190,6 +194,7 @@ export default function ProgressScreen() {
         </>
       )}
     </ScrollView>
+    </>
   );
 }
 

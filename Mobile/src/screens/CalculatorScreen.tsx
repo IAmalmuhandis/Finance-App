@@ -7,8 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
+import { useModal } from "../components/AppModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RotateCcw, Save } from "lucide-react-native";
 import { CustomBucketTree } from "../components/CustomBucketTree";
@@ -30,6 +30,7 @@ import * as api from "../lib/api";
 import { THEME } from "../theme";
 
 export default function CalculatorScreen() {
+  const modal = useModal();
   const [mode, setMode] = useState<CalculatorMode>("recommended");
   const [incomeInput, setIncomeInput] = useState("");
   const [customFormula, setCustomFormula] = useState<FormulaNode[]>(getDefaultCustomFormula);
@@ -77,7 +78,7 @@ export default function CalculatorScreen() {
     const defaults = getRecommendedFormula();
     setRecommendedFormula(defaults);
     void AsyncStorage.removeItem(STORAGE_RECOMMENDED_FORMULA);
-    Alert.alert("Restored", "Recommended formula reset to defaults.");
+    modal.show({ type: "success", title: "Formula Restored", message: "Recommended formula has been reset to defaults." });
   }
 
   async function saveEntry() {
@@ -91,16 +92,18 @@ export default function CalculatorScreen() {
         allocations,
       });
       if (res.error) {
-        Alert.alert("Could not save", res.error);
+        modal.show({ type: "error", title: "Could Not Save", message: res.error });
         return;
       }
-      Alert.alert("Saved", "Entry saved to your progress.");
+      modal.show({ type: "success", title: "Entry Saved!", message: "This split has been added to your progress history." });
     } finally {
       setSaving(false);
     }
   }
 
   return (
+    <>
+    {modal.node}
     <ScrollView style={styles.wrap} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.label}>Total gross income (₦)</Text>
       <TextInput
@@ -162,6 +165,7 @@ export default function CalculatorScreen() {
         </TouchableOpacity>
       ) : null}
     </ScrollView>
+    </>
   );
 }
 
