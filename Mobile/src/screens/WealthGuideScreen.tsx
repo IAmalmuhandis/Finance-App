@@ -5,12 +5,13 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  FlatList,
   ActivityIndicator,
   Alert,
   StyleSheet,
 } from "react-native";
-import { Trash2 } from "lucide-react-native";
+import { Download, Trash2 } from "lucide-react-native";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import {
   type ProjectionInput,
   type ProjectionSummary,
@@ -147,6 +148,78 @@ export default function WealthGuideScreen() {
     const res = await api.deleteProjection(id);
     if (res.error) { Alert.alert("Error", res.error); return; }
     setHistory((h) => h.filter((p) => p.id !== id));
+  }
+
+  async function exportPdf() {
+    if (!summary || !lastInput || rows.length === 0) {
+      Alert.alert("Nothing to export", "Generate a projection first.");
+      return;
+    }
+    const date = new Date().toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric" });
+    const rowsHtml = rows.map((row) => `
+      <tr style="background:${row.no % 2 === 0 ? "#fafafa" : "#fff"}">
+        <td>${row.no}</td>
+        <td>${formatNaira(Math.round(row.initialCapital))}</td>
+        <td style="color:#1a5c46">${formatNaira(Math.round(row.additionalCapital))}</td>
+        <td style="color:#1a5c46">${formatNaira(Math.round(row.income))}</td>
+        <td style="color:#c0392b">${formatNaira(Math.round(row.consumption))}</td>
+        <td style="font-weight:600;color:${row.newCapital >= row.initialCapital ? "#1a5c46" : "#c0392b"}">${formatNaira(Math.round(row.newCapital))}</td>
+      </tr>`).join("");
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+    <style>
+      body{font-family:sans-serif;padding:32px;color:#1a1a1a;font-size:13px}
+      h1{color:#1a5c46;font-size:20px;margin:0}
+      h2{font-size:13px;font-weight:600;margin:20px 0 8px}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th{text-align:right;padding:6px 8px;background:#f0f7f4;border-bottom:2px solid #ccc;font-weight:600}
+      td{text-align:right;padding:5px 8px;border-bottom:1px solid #eee}
+      .header{border-bottom:2px solid #1a5c46;padding-bottom:10px;margin-bottom:16px}
+      .meta{font-size:11px;color:#666;margin-top:4px}
+      .footer{margin-top:24px;font-size:10px;color:#aaa;text-align:center}
+    </style></head><body>
+    <div class="header">
+      <h1>Arzo — Wealth Guide Report</h1>
+      <p class="meta">Generated ${date}</p>
+    </div>
+    <h2>Projection Inputs</h2>
+    <table><tbody>
+      <tr><td style="text-align:left;color:#555">Initial Capital</td><td>${formatNaira(lastInput.initialCapital)}</td></tr>
+      <tr><td style="text-align:left;color:#555">Income Rate</td><td>${pct(lastInput.incomeRate)}</td></tr>
+      <tr><td style="text-align:left;color:#555">Consumption Rate</td><td>${pct(lastInput.consumptionRate)}</td></tr>
+      <tr><td style="text-align:left;color:#555">Additional Capital Rate</td><td>${pct(lastInput.additionalCapitalRate)}</td></tr>
+      <tr><td style="text-align:left;color:#555">Transactions</td><td>${lastInput.numTransactions}</td></tr>
+      ${lastInput.targetWealth ? `<tr><td style="text-align:left;color:#555">Target Wealth</td><td>${formatNaira(lastInput.targetWealth)}</td></tr>` : ""}
+    </tbody></table>
+    <h2>Summary</h2>
+    <table><tbody>
+      <tr><td style="text-align:left;color:#555">Final Capital</td><td>${formatNaira(Math.round(summary.finalCapital))}</td></tr>
+      <tr><td style="text-align:left;color:#555">Net Growth</td><td>${pct(summary.netGrowthPct)}</td></tr>
+      <tr><td style="text-align:left;color:#555">Total Income Earned</td><td>${formatNaira(Math.round(summary.totalIncome))}</td></tr>
+      <tr><td style="text-align:left;color:#555">Total Consumed</td><td>${formatNaira(Math.round(summary.totalConsumption))}</td></tr>
+      <tr><td style="text-align:left;color:#555">Total Added Externally</td><td>${formatNaira(Math.round(summary.totalAdditional))}</td></tr>
+      <tr><td style="text-align:left;color:#555">Wealth Status</td><td style="color:${summary.isGrowing ? "#1a5c46" : "#c0392b"};font-weight:600">${summary.isGrowing ? "Growing" : "Shrinking"}</td></tr>
+      ${lastInput.targetWealth && summary.targetReachedAt !== null ? `<tr><td style="text-align:left;color:#555">Target Reached At</td><td>Transaction #${summary.targetReachedAt}</td></tr>` : ""}
+    </tbody></table>
+    <h2>Transaction Table</h2>
+    <table>
+      <thead><tr><th>#</th><th>Initial Capital</th><th>+Added</th><th>+Income</th><th>−Consumed</th><th>New Capital</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <p class="footer">Arzo Wealth Guide · finance-app-0cwn.onrender.com</p>
+    </body></html>`;
+
+    try {
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Save Wealth Guide PDF" });
+      } else {
+        Alert.alert("Saved", `PDF saved to: ${uri}`);
+      }
+    } catch {
+      Alert.alert("Error", "Could not generate PDF.");
+    }
   }
 
   async function handleLoad(id: string) {
@@ -301,6 +374,12 @@ export default function WealthGuideScreen() {
               {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveText}>Save</Text>}
             </TouchableOpacity>
           </View>
+
+          {/* Export PDF */}
+          <TouchableOpacity style={styles.exportBtn} onPress={() => void exportPdf()}>
+            <Download size={16} color={THEME.colors.primary} />
+            <Text style={styles.exportText}>Export as PDF</Text>
+          </TouchableOpacity>
         </>
       ) : null}
 
@@ -435,6 +514,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   saveText: { color: THEME.colors.textOnJade, fontSize: 14, fontFamily: THEME.fonts.uiSemibold },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: THEME.colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  exportText: { color: THEME.colors.primary, fontSize: 14, fontFamily: THEME.fonts.uiMedium },
   emptyText: { color: THEME.colors.textMuted, fontSize: 13, fontFamily: THEME.fonts.ui, textAlign: "center", paddingVertical: 16 },
   historyItem: {
     flexDirection: "row",
