@@ -207,7 +207,7 @@ export async function GET(
 
     const slug = name.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60) || "projection";
 
-    return new Response(pdfBytes, {
+    return new Response(pdfBytes.buffer as ArrayBuffer, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${slug}.pdf"`,
