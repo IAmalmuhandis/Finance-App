@@ -23,97 +23,9 @@ function pct(n: number) {
   return n.toFixed(1) + "%";
 }
 
-// ── Build & print PDF ─────────────────────────────────────────────────────────
-
-function buildReportHtml(
-  input: ProjectionInput,
-  summary: ProjectionSummary,
-  rows: TransactionRow[],
-  name?: string
-): string {
-  const date = new Date().toLocaleDateString("en-NG", {
-    day: "numeric", month: "long", year: "numeric",
-  });
-
-  let rowsHtml = "";
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const bg = i % 2 === 0 ? "#ffffff" : "#f7faf8";
-    const newCapColor = row.newCapital >= row.initialCapital ? "#1a5c46" : "#c0392b";
-    rowsHtml +=
-      "<tr style='background:" + bg + "'>" +
-      "<td style='text-align:center;color:#999'>" + row.no + "</td>" +
-      "<td>" + formatNaira(Math.round(row.initialCapital)) + "</td>" +
-      "<td style='color:#1a5c46'>" + formatNaira(Math.round(row.additionalCapital)) + "</td>" +
-      "<td style='color:#1a5c46'>" + formatNaira(Math.round(row.income)) + "</td>" +
-      "<td style='color:#c0392b'>" + formatNaira(Math.round(row.consumption)) + "</td>" +
-      "<td style='font-weight:700;color:" + newCapColor + "'>" + formatNaira(Math.round(row.newCapital)) + "</td>" +
-      "</tr>";
-  }
-
-  const targetInputRow = input.targetWealth
-    ? "<tr><td>Target Wealth</td><td>" + formatNaira(input.targetWealth) + "</td></tr>" : "";
-  const targetSummaryRow =
-    input.targetWealth && summary.targetReachedAt !== null
-      ? "<tr><td>Target Reached At</td><td>Transaction #" + summary.targetReachedAt + "</td></tr>" : "";
-
-  const statusColor = summary.isGrowing ? "#1a5c46" : "#c0392b";
-
-  return "<!DOCTYPE html><html><head>" +
-    "<meta charset='utf-8'/>" +
-    "<title>" + (name || "Wealth Guide Report") + "</title>" +
-    "<style>" +
-    "body{font-family:Arial,Helvetica,sans-serif;padding:32px;color:#1a1a1a;font-size:13px;line-height:1.5;margin:0}" +
-    "h1{color:#1a5c46;font-size:21px;margin:0 0 4px}" +
-    "h2{font-size:13px;font-weight:700;margin:22px 0 6px;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px}" +
-    ".meta{font-size:11px;color:#777;margin:0}" +
-    ".header{border-bottom:2px solid #1a5c46;padding-bottom:12px;margin-bottom:18px}" +
-    "table{width:100%;border-collapse:collapse;font-size:12px}" +
-    "th{text-align:right;padding:7px 10px;background:#e8f5f0;border-bottom:2px solid #b0d4c8;font-weight:700;color:#333}" +
-    "th:first-child{text-align:left}" +
-    "td{text-align:right;padding:5px 10px;border-bottom:1px solid #eee}" +
-    "td:first-child{text-align:left;color:#555}" +
-    ".footer{margin-top:28px;font-size:10px;color:#bbb;text-align:center;border-top:1px solid #eee;padding-top:10px}" +
-    "@media print{@page{margin:18mm;size:A4}}" +
-    "</style></head><body>" +
-    "<div class='header'>" +
-    "<h1>" + (name || "Wealth Guide Report") + "</h1>" +
-    "<p class='meta'>Generated " + date + " &nbsp;&middot;&nbsp; Arzo</p>" +
-    "</div>" +
-    "<h2>Inputs</h2>" +
-    "<table><tbody>" +
-    "<tr><td>Initial Capital</td><td>" + formatNaira(input.initialCapital) + "</td></tr>" +
-    "<tr><td>Income Rate</td><td>" + pct(input.incomeRate) + " per transaction</td></tr>" +
-    "<tr><td>Consumption Rate</td><td>" + pct(input.consumptionRate) + " per transaction</td></tr>" +
-    "<tr><td>Additional Capital Rate</td><td>" + pct(input.additionalCapitalRate) + " per transaction</td></tr>" +
-    "<tr><td>Number of Transactions</td><td>" + input.numTransactions + "</td></tr>" +
-    targetInputRow +
-    "</tbody></table>" +
-    "<h2>Summary</h2>" +
-    "<table><tbody>" +
-    "<tr><td>Final Capital</td><td>" + formatNaira(Math.round(summary.finalCapital)) + "</td></tr>" +
-    "<tr><td>Net Growth</td><td>" + pct(summary.netGrowthPct) + "</td></tr>" +
-    "<tr><td>Total Income Earned</td><td>" + formatNaira(Math.round(summary.totalIncome)) + "</td></tr>" +
-    "<tr><td>Total Consumed</td><td>" + formatNaira(Math.round(summary.totalConsumption)) + "</td></tr>" +
-    "<tr><td>Total Added Externally</td><td>" + formatNaira(Math.round(summary.totalAdditional)) + "</td></tr>" +
-    "<tr><td>Wealth Status</td><td style='font-weight:700;color:" + statusColor + "'>" + (summary.isGrowing ? "Growing" : "Shrinking") + "</td></tr>" +
-    targetSummaryRow +
-    "</tbody></table>" +
-    "<h2>Transaction Table</h2>" +
-    "<table><thead><tr>" +
-    "<th style='text-align:center'>#</th><th>Initial Capital</th><th>+Added</th><th>+Income</th><th>&minus;Consumed</th><th>New Capital</th>" +
-    "</tr></thead><tbody>" + rowsHtml + "</tbody></table>" +
-    "<p class='footer'>Arzo Wealth Guide &mdash; finance-app-0cwn.onrender.com</p>" +
-    "</body></html>";
-}
-
-function printHtml(html: string) {
-  const w = window.open("", "_blank", "width=900,height=700");
-  if (!w) { toast.error("Allow pop-ups in your browser to export PDF"); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.onload = () => { w.focus(); w.print(); };
+function downloadPdf(id: string) {
+  // Direct browser download — server generates the real PDF from DB data
+  window.location.href = `/api/projections/${id}/pdf`;
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -145,7 +57,6 @@ export default function WealthGuidePage() {
 
   const [projectionName, setProjectionName] = useState("");
   const [saving, setSaving] = useState(false);
-  const [exportingId, setExportingId] = useState<string | null>(null);
 
   const [history, setHistory] = useState<SavedProjection[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -182,20 +93,8 @@ export default function WealthGuidePage() {
     setShowAll(false);
   }
 
-  function exportCurrentPdf() {
-    if (!summary || !lastInput || rows.length === 0) { toast.error("Generate a projection first"); return; }
-    printHtml(buildReportHtml(lastInput, summary, rows, projectionName.trim() || undefined));
-  }
-
-  async function exportSavedPdf(id: string, name?: string) {
-    setExportingId(id);
-    try {
-      const res = await fetch(`/api/projections/${id}`);
-      if (!res.ok) { toast.error("Could not load projection"); return; }
-      const j = (await res.json()) as { projection: SavedProjection & { rows: TransactionRow[] } };
-      const p = j.projection;
-      printHtml(buildReportHtml(p.input, p.summary, p.rows, p.name || name));
-    } catch { toast.error("Could not export PDF"); } finally { setExportingId(null); }
+function exportSavedPdf(id: string) {
+    downloadPdf(id);
   }
 
   async function saveProjection() {
@@ -376,10 +275,6 @@ export default function WealthGuidePage() {
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Save
             </button>
-            <button type="button" onClick={exportCurrentPdf} className="flex items-center gap-2 rounded-[12px] border border-border-subtle bg-bg-surface px-4 py-2 text-sm font-medium text-text-secondary hover:border-border-strong hover:text-text-primary">
-              <Download size={14} aria-hidden />
-              PDF
-            </button>
           </div>
         </section>
       ) : null}
@@ -408,13 +303,12 @@ export default function WealthGuidePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void exportSavedPdf(p.id, p.name)}
-                  disabled={exportingId === p.id}
-                  className="shrink-0 rounded-md p-1.5 text-text-muted hover:bg-jade/10 hover:text-jade disabled:opacity-40"
+                  onClick={() => exportSavedPdf(p.id)}
+                  className="shrink-0 rounded-md p-1.5 text-text-muted hover:bg-jade/10 hover:text-jade"
                   aria-label="Export PDF"
                   title="Export PDF"
                 >
-                  {exportingId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  <Download size={14} />
                 </button>
                 <button type="button" onClick={() => void deleteProjection(p.id)} className="shrink-0 rounded-md p-1.5 text-text-muted hover:bg-accent-red/10 hover:text-accent-red" aria-label="Delete">
                   <Trash2 size={14} />
