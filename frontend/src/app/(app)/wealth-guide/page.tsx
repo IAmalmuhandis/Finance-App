@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatNaira, formatNairaInput, parseNairaInput } from "@/lib/calculator";
 import {
@@ -49,6 +49,7 @@ export default function WealthGuidePage() {
   const [additionalCapitalRate, setAdditionalCapitalRate] = useState("2");
   const [numTransactions, setNumTransactions] = useState("12");
   const [targetWealthInput, setTargetWealthInput] = useState("");
+  const printRef = useRef<HTMLDivElement>(null);
 
   // Results
   const [rows, setRows] = useState<TransactionRow[]>([]);
@@ -164,13 +165,41 @@ export default function WealthGuidePage() {
 
   const displayRows = showAll ? rows : rows.slice(0, 20);
 
+  function exportPdf() {
+    if (!summary || rows.length === 0) { toast.error("Generate a projection first"); return; }
+    window.print();
+  }
+
   return (
+    <>
+      {/* Print-only styles — hidden from screen, applied only when printing */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #wealth-print-region, #wealth-print-region * { visibility: visible; }
+          #wealth-print-region { position: fixed; inset: 0; overflow: visible; padding: 32px; background: white; }
+          @page { margin: 20mm; size: A4; }
+        }
+      `}</style>
+
     <div className="mx-auto max-w-3xl px-4 pb-16 pt-16 md:pt-8">
-      <header className="mb-6">
-        <h1 className="font-display text-2xl font-semibold text-jade">Wealth Guide</h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Project how your wealth grows (or shrinks) over multiple transactions.
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-jade">Wealth Guide</h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            Project how your wealth grows (or shrinks) over multiple transactions.
+          </p>
+        </div>
+        {summary && rows.length > 0 ? (
+          <button
+            type="button"
+            onClick={exportPdf}
+            className="flex shrink-0 items-center gap-2 rounded-[12px] border border-border-subtle bg-bg-surface px-4 py-2 text-sm font-medium text-text-secondary transition hover:border-border-strong hover:text-text-primary"
+          >
+            <Download size={15} aria-hidden />
+            Export PDF
+          </button>
+        ) : null}
       </header>
 
       {/* ── Section 1: Inputs ──────────────────────────────────────────────── */}
@@ -410,5 +439,93 @@ export default function WealthGuidePage() {
         )}
       </section>
     </div>
+
+    {/* Hidden print region — rendered off-screen, becomes visible only at print time */}
+    {summary && lastInput && rows.length > 0 ? (
+      <div id="wealth-print-region" style={{ display: "none" }} aria-hidden>
+        <div style={{ fontFamily: "sans-serif", color: "#1a1a1a" }}>
+          <div style={{ marginBottom: 24, borderBottom: "2px solid #1a5c46", paddingBottom: 12 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a5c46", margin: 0 }}>Arzo — Wealth Guide Report</h1>
+            <p style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+              Generated {new Date().toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric" })}
+            </p>
+          </div>
+
+          {/* Inputs summary */}
+          <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Projection Inputs</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 20 }}>
+            <tbody>
+              {[
+                ["Initial Capital", formatNaira(lastInput.initialCapital)],
+                ["Income Rate", pct(lastInput.incomeRate)],
+                ["Consumption Rate", pct(lastInput.consumptionRate)],
+                ["Additional Capital Rate", pct(lastInput.additionalCapitalRate)],
+                ["Number of Transactions", String(lastInput.numTransactions)],
+                ...(lastInput.targetWealth ? [["Target Wealth", formatNaira(lastInput.targetWealth)]] : []),
+              ].map(([label, value]) => (
+                <tr key={label} style={{ borderBottom: "1px solid #e5e5e5" }}>
+                  <td style={{ padding: "5px 8px", color: "#555" }}>{label}</td>
+                  <td style={{ padding: "5px 8px", fontWeight: 600, textAlign: "right" }}>{value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Summary stats */}
+          <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Summary</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 20 }}>
+            <tbody>
+              {[
+                ["Final Capital", formatNaira(Math.round(summary.finalCapital))],
+                ["Net Growth", pct(summary.netGrowthPct)],
+                ["Total Income Earned", formatNaira(Math.round(summary.totalIncome))],
+                ["Total Consumed", formatNaira(Math.round(summary.totalConsumption))],
+                ["Total Added Externally", formatNaira(Math.round(summary.totalAdditional))],
+                ["Wealth Status", summary.isGrowing ? "Growing" : "Shrinking"],
+                ...(lastInput.targetWealth && summary.targetReachedAt !== null
+                  ? [["Target Reached At", `Transaction #${summary.targetReachedAt}`]]
+                  : []),
+              ].map(([label, value]) => (
+                <tr key={label} style={{ borderBottom: "1px solid #e5e5e5" }}>
+                  <td style={{ padding: "5px 8px", color: "#555" }}>{label}</td>
+                  <td style={{ padding: "5px 8px", fontWeight: 600, textAlign: "right" }}>{value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Transaction table */}
+          <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Transaction Table</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+            <thead>
+              <tr style={{ backgroundColor: "#f0f7f4" }}>
+                {["#", "Initial Capital", "+Added", "+Income", "−Consumed", "New Capital"].map((h) => (
+                  <th key={h} style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600, color: "#333", borderBottom: "2px solid #ccc" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.no} style={{ borderBottom: "1px solid #eee", backgroundColor: row.no % 2 === 0 ? "#fafafa" : "white" }}>
+                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#999" }}>{row.no}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "right" }}>{formatNaira(Math.round(row.initialCapital))}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#1a5c46" }}>{formatNaira(Math.round(row.additionalCapital))}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#1a5c46" }}>{formatNaira(Math.round(row.income))}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#c0392b" }}>{formatNaira(Math.round(row.consumption))}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 600, color: row.newCapital >= row.initialCapital ? "#1a5c46" : "#c0392b" }}>
+                    {formatNaira(Math.round(row.newCapital))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <p style={{ marginTop: 24, fontSize: 10, color: "#aaa", textAlign: "center" }}>
+            Arzo Wealth Guide · finance-app-0cwn.onrender.com
+          </p>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

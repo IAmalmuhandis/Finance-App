@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff, UserPlus } from "lucide-react-native";
 import { useAuth } from "../auth/AuthContext";
-import { GoogleAuthMobile } from "../components/GoogleAuthMobile";
 import { ArzoMark } from "../components/ArzoMark";
 import { ARZO, THEME } from "../theme";
 import * as api from "../lib/api";
@@ -20,18 +19,18 @@ import * as api from "../lib/api";
 type Mode = "signin" | "signup";
 
 export default function LoginScreen() {
-  const { signIn, signUp, signInWithGoogle, error, email: savedEmail, isReady } = useAuth();
+  const { signIn, signUp, error, email: savedEmail, isReady } = useAuth();
   const [mode, setMode] = useState<Mode>("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleBusy, setGoogleBusy] = useState(false);
-  const [googleLocalMsg, setGoogleLocalMsg] = useState<string | null>(null);
   const [showServer, setShowServer] = useState(false);
   const [serverUrl, setServerUrl] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (!isReady) return;
@@ -65,23 +64,17 @@ export default function LoginScreen() {
       setShowServer(false);
       return;
     }
-    if (!email.trim()) {
-      setLocalError("Enter your email.");
-      return;
-    }
-    if (!password) {
-      setLocalError("Enter your password.");
-      return;
-    }
-    if (mode === "signup" && password.length < 6) {
-      setLocalError("Password must be at least 6 characters.");
-      return;
+    if (!email.trim()) { setLocalError("Enter your email."); return; }
+    if (!password) { setLocalError("Enter your password."); return; }
+    if (mode === "signup") {
+      if (password.length < 6) { setLocalError("Password must be at least 6 characters."); return; }
+      if (password !== confirmPassword) { setLocalError("Passwords do not match."); return; }
     }
     setLoading(true);
     try {
       if (mode === "signup") {
         const ok = await signUp(email, password, name);
-        if (!ok) setPassword("");
+        if (!ok) { setPassword(""); setConfirmPassword(""); }
       } else {
         const ok = await signIn(email, password);
         if (!ok) setPassword("");
@@ -89,6 +82,15 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setName("");
+    setPassword("");
+    setConfirmPassword("");
+    setLocalError(null);
+    if (next === "signin") setName("");
   };
 
   const primaryLabel = showServer ? "Save & continue" : mode === "signin" ? "Sign in" : "Create account";
@@ -133,7 +135,7 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
-                  editable={!loading && !googleBusy}
+                  editable={!loading}
                 />
               </>
             )}
@@ -141,18 +143,15 @@ export default function LoginScreen() {
             <View style={styles.modeRow}>
               <TouchableOpacity
                 style={[styles.modeBtn, mode === "signin" && styles.modeBtnActive]}
-                onPress={() => {
-                  setMode("signin");
-                  setName("");
-                }}
-                disabled={loading || googleBusy}
+                onPress={() => switchMode("signin")}
+                disabled={loading}
               >
                 <Text style={[styles.modeText, mode === "signin" && styles.modeTextActive]}>Sign in</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modeBtn, mode === "signup" && styles.modeBtnActive]}
-                onPress={() => setMode("signup")}
-                disabled={loading || googleBusy}
+                onPress={() => switchMode("signup")}
+                disabled={loading}
               >
                 <View style={styles.modeInner}>
                   <UserPlus size={16} color={mode === "signup" ? THEME.colors.text : THEME.colors.textMuted} />
@@ -171,7 +170,7 @@ export default function LoginScreen() {
                   placeholder="Your name"
                   placeholderTextColor={THEME.colors.textMuted}
                   autoCapitalize="words"
-                  editable={!loading && !googleBusy}
+                  editable={!loading}
                 />
               </>
             )}
@@ -185,7 +184,7 @@ export default function LoginScreen() {
               placeholderTextColor={THEME.colors.textMuted}
               autoCapitalize="none"
               keyboardType="email-address"
-              editable={!loading && !googleBusy}
+              editable={!loading}
             />
 
             <Text style={styles.label}>Password</Text>
@@ -197,32 +196,62 @@ export default function LoginScreen() {
                 placeholder="At least 6 characters"
                 placeholderTextColor={THEME.colors.textMuted}
                 secureTextEntry={!showPassword}
-                onSubmitEditing={onSubmit}
-                editable={!loading && !googleBusy}
+                onSubmitEditing={mode === "signin" ? onSubmit : undefined}
+                editable={!loading}
               />
               <TouchableOpacity
                 style={styles.eyeBtn}
                 onPress={() => setShowPassword((v) => !v)}
-                disabled={loading || googleBusy}
+                disabled={loading}
                 hitSlop={10}
                 accessibilityLabel={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? (
-                  <EyeOff size={20} color={THEME.colors.textSecondary} />
-                ) : (
-                  <Eye size={20} color={THEME.colors.textSecondary} />
-                )}
+                {showPassword ? <EyeOff size={20} color={THEME.colors.textSecondary} /> : <Eye size={20} color={THEME.colors.textSecondary} />}
               </TouchableOpacity>
             </View>
 
+            {mode === "signup" && (
+              <>
+                <Text style={styles.label}>Confirm password</Text>
+                <View style={styles.passwordWrap}>
+                  <TextInput
+                    style={[
+                      styles.passwordInput,
+                      confirmPassword.length > 0 && password !== confirmPassword && styles.inputError,
+                    ]}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder="Re-enter your password"
+                    placeholderTextColor={THEME.colors.textMuted}
+                    secureTextEntry={!showConfirm}
+                    onSubmitEditing={onSubmit}
+                    editable={!loading}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeBtn}
+                    onPress={() => setShowConfirm((v) => !v)}
+                    disabled={loading}
+                    hitSlop={10}
+                    accessibilityLabel={showConfirm ? "Hide password" : "Show password"}
+                  >
+                    {showConfirm ? <EyeOff size={20} color={THEME.colors.textSecondary} /> : <Eye size={20} color={THEME.colors.textSecondary} />}
+                  </TouchableOpacity>
+                </View>
+                {confirmPassword.length > 0 && password !== confirmPassword ? (
+                  <Text style={styles.matchHint}>Passwords do not match</Text>
+                ) : confirmPassword.length > 0 && password === confirmPassword ? (
+                  <Text style={styles.matchOk}>Passwords match ✓</Text>
+                ) : null}
+              </>
+            )}
+
             {localError ? <Text style={styles.err}>{localError}</Text> : null}
-            {googleLocalMsg ? <Text style={styles.err}>{googleLocalMsg}</Text> : null}
             {error ? <Text style={styles.err}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.btn, (loading || googleBusy) && { opacity: 0.55 }]}
+              style={[styles.btn, loading && { opacity: 0.55 }]}
               onPress={onSubmit}
-              disabled={loading || googleBusy}
+              disabled={loading}
               activeOpacity={0.9}
             >
               {loading ? (
@@ -232,24 +261,10 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <GoogleAuthMobile
-              disabled={loading}
-              busy={googleBusy}
-              setBusy={setGoogleBusy}
-              onIdToken={signInWithGoogle}
-              onMessage={setGoogleLocalMsg}
-              pendingBaseUrl={showServer ? serverUrl : ""}
-            />
-
             <TouchableOpacity
               style={{ marginTop: 18, alignSelf: "center", paddingVertical: 8 }}
-              onPress={() => {
-                setMode((m) => (m === "signin" ? "signup" : "signin"));
-                setName("");
-                setLocalError(null);
-                setGoogleLocalMsg(null);
-              }}
-              disabled={loading || googleBusy}
+              onPress={() => switchMode(mode === "signin" ? "signup" : "signin")}
+              disabled={loading}
             >
               <Text style={{ color: THEME.colors.textSecondary, fontSize: 14, textDecorationLine: "underline" }}>
                 {mode === "signin" ? "New user? Register" : "Have an account? Sign in"}
@@ -257,11 +272,11 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {loading || googleBusy ? (
+          {loading ? (
             <View style={styles.busyOverlay} pointerEvents="auto">
               <ActivityIndicator size="large" color={THEME.colors.primary} />
               <Text style={styles.busyTitle}>
-                {googleBusy ? "Google sign-in..." : mode === "signup" ? "Creating your account..." : "Signing you in..."}
+                {mode === "signup" ? "Creating your account..." : "Signing you in..."}
               </Text>
               <Text style={styles.busySub}>This only takes a moment</Text>
             </View>
@@ -295,19 +310,8 @@ const styles = StyleSheet.create({
   brand: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 20 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 16 },
   brandIcon: { width: 56, height: 56, alignItems: "center", justifyContent: "center" },
-  brandName: {
-    fontSize: 32,
-    fontFamily: THEME.fonts.display,
-    color: THEME.colors.primary,
-    letterSpacing: -0.5,
-  },
-  brandTag: {
-    color: THEME.colors.gold,
-    fontSize: 15,
-    fontFamily: THEME.fonts.displayRegular,
-    fontStyle: "italic",
-    marginTop: 4,
-  },
+  brandName: { fontSize: 32, fontFamily: THEME.fonts.display, color: THEME.colors.primary, letterSpacing: -0.5 },
+  brandTag: { color: THEME.colors.gold, fontSize: 15, fontFamily: THEME.fonts.displayRegular, fontStyle: "italic", marginTop: 4 },
   hint: { color: THEME.colors.textMuted, fontSize: 14, lineHeight: 20, marginTop: 20 },
   form: { paddingHorizontal: 24, paddingBottom: 32, gap: 4 },
   modeRow: {
@@ -335,6 +339,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: THEME.fonts.ui,
   },
+  inputError: { borderColor: THEME.colors.accentAlert },
   passwordWrap: { position: "relative", justifyContent: "center" },
   passwordInput: {
     backgroundColor: THEME.colors.input,
@@ -347,14 +352,9 @@ const styles = StyleSheet.create({
     color: THEME.colors.text,
     fontSize: 16,
   },
-  eyeBtn: {
-    position: "absolute",
-    right: 4,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
+  eyeBtn: { position: "absolute", right: 4, top: 0, bottom: 0, justifyContent: "center", paddingHorizontal: 10 },
+  matchHint: { color: THEME.colors.accentAlert, fontSize: 12, marginTop: 4, fontFamily: THEME.fonts.ui },
+  matchOk: { color: THEME.colors.primary, fontSize: 12, marginTop: 4, fontFamily: THEME.fonts.ui },
   err: { color: THEME.colors.accentAlert, fontSize: 14, marginTop: 8, fontFamily: THEME.fonts.ui },
   btn: {
     backgroundColor: THEME.colors.primary,
