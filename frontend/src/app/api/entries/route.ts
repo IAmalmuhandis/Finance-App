@@ -12,7 +12,7 @@ const AllocationSchema = z.object({
 
 const Body = z.object({
   grossAmount: z.number().positive(),
-  mode: z.enum(["recommended", "custom"]),
+  mode: z.enum(["starter", "intermediate", "advance", "custom", "recommended"]),
   formulaSnapshot: z.array(z.unknown()),
   allocations: z.array(AllocationSchema).min(1),
 });

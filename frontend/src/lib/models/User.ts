@@ -8,6 +8,12 @@ const UserSchema = new Schema({
   /** Google `sub` — links OAuth sign-in to this user. */
   googleId: { type: String, unique: true, sparse: true },
   createdAt: { type: Date, default: Date.now },
+
+  /** Calculator tier tracking, used for the Graduate nudge. */
+  currentTier: { type: String, enum: ["starter", "intermediate", "advance", "custom"], default: "starter" },
+  tierStartedAt: { type: Date, default: Date.now },
+  graduateNudgeDismissedTier: { type: String },
+  graduateNudgeDismissedAt: { type: Date },
 });
 
 export const User = mongoose.models.User || mongoose.model("User", UserSchema);

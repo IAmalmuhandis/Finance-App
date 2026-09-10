@@ -1,24 +1,43 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, RotateCcw, Save } from "lucide-react";
+import { Loader2, Save, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { BucketTree } from "@/components/calculator/BucketTree";
 import { Button } from "@/components/ui/button";
 import {
   type CalculatorMode,
   type FormulaNode,
+  type Tier,
   STORAGE_CUSTOM_FORMULA,
   STORAGE_INCOME,
-  STORAGE_RECOMMENDED_FORMULA,
+  STORAGE_MODE,
   computeAllocations,
   formatNaira,
   formatNairaInput,
   getDefaultCustomFormula,
-  getRecommendedFormula,
-  isSiblingsValid,
+  getFormulaForTier,
   parseNairaInput,
+  validateTree,
 } from "@/lib/calculator";
+
+const TIER_ORDER: Tier[] = ["starter", "intermediate", "advance"];
+const TABS: CalculatorMode[] = ["starter", "intermediate", "advance", "custom"];
+
+const TAB_LABELS: Record<CalculatorMode, string> = {
+  starter: "Starter",
+  intermediate: "Intermediate",
+  advance: "Advance",
+  custom: "Custom",
+};
+
+const TIER_COPY: Record<Tier, string> = {
+  starter: "Build the habit first. Every framework starts here.",
+  intermediate: "You've held Starter for a while — time to raise the bar.",
+  advance: "The full framework, for when it's proven it can stick.",
+};
+
+type NudgeStatus = { currentTier: string; nudge: { eligible: boolean; dismissed: boolean } } | null;
 
 function loadCustomFormula(): FormulaNode[] {
   if (typeof window === "undefined") return getDefaultCustomFormula();
@@ -31,34 +50,21 @@ function loadCustomFormula(): FormulaNode[] {
   return getDefaultCustomFormula();
 }
 
-function loadRecommendedFormula(): FormulaNode[] {
-  if (typeof window === "undefined") return getRecommendedFormula();
-  try {
-    const raw = localStorage.getItem(STORAGE_RECOMMENDED_FORMULA);
-    if (raw) return JSON.parse(raw) as FormulaNode[];
-  } catch {
-    /* ignore */
-  }
-  return getRecommendedFormula();
-}
-
-function validateTree(nodes: FormulaNode[]): boolean {
-  if (!isSiblingsValid(nodes)) return false;
-  for (const n of nodes) {
-    if (n.children && n.children.length > 0) {
-      if (!validateTree(n.children)) return false;
-    }
-  }
-  return true;
+function loadMode(): CalculatorMode {
+  if (typeof window === "undefined") return "starter";
+  const raw = localStorage.getItem(STORAGE_MODE);
+  if (raw && (TABS as string[]).includes(raw)) return raw as CalculatorMode;
+  return "starter";
 }
 
 export default function CalculatorPage() {
-  const [mode, setMode] = useState<CalculatorMode>("recommended");
+  const [mode, setMode] = useState<CalculatorMode>("starter");
   const [incomeInput, setIncomeInput] = useState("");
   const [customFormula, setCustomFormula] = useState<FormulaNode[]>(getDefaultCustomFormula);
-  const [recommendedFormula, setRecommendedFormula] = useState<FormulaNode[]>(getRecommendedFormula);
   const [saving, setSaving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [nudge, setNudge] = useState<NudgeStatus>(null);
+  const [nudgeDismissedLocally, setNudgeDismissedLocally] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_INCOME);
@@ -67,12 +73,12 @@ export default function CalculatorPage() {
       if (n > 0) setIncomeInput(formatNairaInput(String(n)));
     }
     setCustomFormula(loadCustomFormula());
-    setRecommendedFormula(loadRecommendedFormula());
+    setMode(loadMode());
     setHydrated(true);
   }, []);
 
   const gross = parseNairaInput(incomeInput);
-  const formula = mode === "recommended" ? recommendedFormula : customFormula;
+  const formula = mode === "custom" ? customFormula : getFormulaForTier(mode);
   const allocations = useMemo(() => computeAllocations(gross, formula), [gross, formula]);
   const canSave = gross > 0 && validateTree(formula) && allocations.length > 0;
 
@@ -84,17 +90,34 @@ export default function CalculatorPage() {
     }
   }, [gross, customFormula, mode, hydrated]);
 
-  // Persist recommended formula changes
+  // Persist selected tab + keep the server's tier record (used for the Graduate nudge) in sync.
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(STORAGE_RECOMMENDED_FORMULA, JSON.stringify(recommendedFormula));
-  }, [recommendedFormula, hydrated]);
+    localStorage.setItem(STORAGE_MODE, mode);
+    setNudgeDismissedLocally(false);
+    fetch("/api/calculator/tier", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tier: mode }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((j: NudgeStatus) => setNudge(j))
+      .catch(() => {
+        /* non-critical — nudge just won't show this session */
+      });
+  }, [mode, hydrated]);
 
-  function restoreRecommendedDefaults() {
-    const defaults = getRecommendedFormula();
-    setRecommendedFormula(defaults);
-    localStorage.removeItem(STORAGE_RECOMMENDED_FORMULA);
-    toast.success("Recommended formula restored to defaults");
+  async function dismissNudge() {
+    setNudgeDismissedLocally(true);
+    try {
+      await fetch("/api/calculator/tier", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dismissNudge: true }),
+      });
+    } catch {
+      /* local dismissal already applied */
+    }
   }
 
   async function saveEntry() {
@@ -125,12 +148,46 @@ export default function CalculatorPage() {
 
   const customInvalid = mode === "custom" && !validateTree(customFormula);
 
+  const showNudge =
+    !nudgeDismissedLocally &&
+    nudge?.nudge.eligible &&
+    TIER_ORDER.includes(mode as Tier) &&
+    nudge.currentTier === mode;
+  const nudgeTierIdx = TIER_ORDER.indexOf(mode as Tier);
+  const nextTier = nudgeTierIdx >= 0 ? TIER_ORDER[nudgeTierIdx + 1] : undefined;
+
   return (
     <div className="mx-auto max-w-2xl px-4 pb-16 pt-16 md:pt-8">
       <header className="mb-6">
         <h1 className="font-display text-2xl font-semibold text-jade">Calculator</h1>
         <p className="mt-1 text-sm text-text-secondary">Enter gross income and split it across your buckets.</p>
       </header>
+
+      {showNudge && nextTier ? (
+        <div className="mb-6 flex items-start gap-3 rounded-[16px] border border-gold/40 bg-gold-soft p-4">
+          <Sparkles size={18} className="mt-0.5 shrink-0 text-gold" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-text-primary">
+              You&apos;ve been on {TAB_LABELS[mode]} for 90+ days. Ready to try {TAB_LABELS[nextTier]}?
+            </p>
+            <button
+              type="button"
+              onClick={() => setMode(nextTier)}
+              className="mt-2 text-xs font-semibold text-jade underline underline-offset-2 hover:text-jade-deep"
+            >
+              Try {TAB_LABELS[nextTier]}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => void dismissNudge()}
+            className="shrink-0 rounded-md p-1 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+            aria-label="Dismiss"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : null}
 
       <section className="mb-6 rounded-[20px] border border-border-subtle bg-bg-surface p-4">
         <label htmlFor="gross-income" className="block text-sm font-medium text-text-primary">
@@ -152,42 +209,29 @@ export default function CalculatorPage() {
 
       <section className="mb-6">
         <div
-          className="inline-flex rounded-[12px] border border-border-subtle bg-bg-input p-1"
+          className="inline-flex flex-wrap rounded-[12px] border border-border-subtle bg-bg-input p-1"
           role="tablist"
           aria-label="Split mode"
         >
-          {(["recommended", "custom"] as const).map((m) => (
+          {TABS.map((m) => (
             <button
               key={m}
               type="button"
               role="tab"
               aria-selected={mode === m}
               onClick={() => setMode(m)}
-              className={`rounded-[10px] px-4 py-2 text-sm font-medium capitalize transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade ${
+              className={`rounded-[10px] px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade ${
                 mode === m
                   ? "bg-jade text-text-on-jade"
                   : "text-text-secondary hover:text-text-primary"
               }`}
             >
-              {m === "recommended" ? "Recommended" : "Custom"}
+              {TAB_LABELS[m]}
             </button>
           ))}
         </div>
-        {mode === "recommended" ? (
-          <div className="mt-2 flex items-center justify-between">
-            <p className="text-xs text-text-muted">
-              Sadaqah off the top, then Investment, Personal Consumption, and a Final Third split three ways.
-              Edit any bucket below — changes are saved automatically.
-            </p>
-            <button
-              type="button"
-              onClick={restoreRecommendedDefaults}
-              className="ml-3 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-secondary"
-            >
-              <RotateCcw size={11} aria-hidden />
-              Restore defaults
-            </button>
-          </div>
+        {mode !== "custom" ? (
+          <p className="mt-2 text-xs text-text-muted">{TIER_COPY[mode]}</p>
         ) : (
           <p className="mt-2 text-xs text-text-muted">
             Build your own formula. Percentages are shown as % of total income. Child groups must sum to 100%.
@@ -196,15 +240,10 @@ export default function CalculatorPage() {
       </section>
 
       <section className="mb-6 space-y-3" aria-live="polite">
-        {mode === "recommended" ? (
-          <BucketTree
-            nodes={recommendedFormula}
-            gross={gross}
-            editable
-            onChange={setRecommendedFormula}
-          />
-        ) : (
+        {mode === "custom" ? (
           <BucketTree nodes={customFormula} gross={gross} editable onChange={setCustomFormula} />
+        ) : (
+          <BucketTree nodes={formula} gross={gross} editable={false} onChange={() => {}} />
         )}
       </section>
 

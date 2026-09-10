@@ -16,7 +16,7 @@ module.exports = {
   scheme: "arzo",
   icon: "./assets/icon.png",
   platforms: ["ios", "android"],
-  plugins: ["expo-asset", "expo-web-browser"],
+  plugins: ["expo-asset", "expo-web-browser", "expo-font", "expo-sharing", "expo-status-bar"],
   splash: {
     image: "./assets/icon.png",
     backgroundColor: "#F6F4EE",

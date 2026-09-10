@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, GitBranch, RotateCcw } from "lucide-react";
+import { Plus, Trash2, GitBranch } from "lucide-react";
 import {
   type BucketType,
   type FormulaNode,
@@ -9,7 +9,6 @@ import {
   computeAllocations,
   formatNaira,
   formatPercent,
-  getRecommendedFormula,
   newId,
   siblingsDelta,
 } from "@/lib/calculator";
@@ -259,7 +258,7 @@ type BucketTreeProps = {
 
 export function BucketTree({ nodes, gross, editable = true, onChange }: BucketTreeProps) {
   if (!editable) {
-    // Readonly flat view — same as RecommendedBuckets but for arbitrary formula
+    // Readonly flat view — used for the preset tiers (Starter/Intermediate/Advance)
     const leaves = collectLeaves(nodes);
     const allocations = computeAllocations(gross, nodes);
     const amountByName = Object.fromEntries(allocations.map((a) => [a.name, a.amount]));
@@ -310,39 +309,3 @@ export function BucketTree({ nodes, gross, editable = true, onChange }: BucketTr
   );
 }
 
-// ── RecommendedBuckets (readonly, exported for backward-compat) ───────────────
-
-export function RecommendedBuckets({ gross }: { gross: number }) {
-  const formula = getRecommendedFormula();
-  const leaves = collectLeaves(formula);
-  const allocations = computeAllocations(gross, formula);
-  const amountByName = Object.fromEntries(allocations.map((a) => [a.name, a.amount]));
-
-  return (
-    <div className="space-y-2">
-      {leaves.map((leaf) => (
-        <div
-          key={leaf.id}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-[20px] border border-border-subtle bg-bg-surface px-4 py-3"
-        >
-          <div className="flex items-start gap-3">
-            <span
-              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ background: ALLOCATION_COLORS[leaf.name] ?? "#6B7A6F" }}
-              aria-hidden
-            />
-            <div>
-              <p className="text-sm font-medium text-text-primary">{leaf.name}</p>
-              <p className="text-xs text-text-secondary">
-                {formatPercent(leaf.effectivePercent)} · <span className="text-text-muted">{leaf.type}</span>
-              </p>
-            </div>
-          </div>
-          <p className="text-sm font-medium tabular-nums text-text-primary">
-            {formatNaira(amountByName[leaf.name] ?? 0)}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}

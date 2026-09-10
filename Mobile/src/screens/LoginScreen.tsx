@@ -292,7 +292,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   contentWrap: { flex: 1, position: "relative" },
   busyOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     backgroundColor: "rgba(246, 244, 238, 0.92)",
     justifyContent: "center",
     alignItems: "center",

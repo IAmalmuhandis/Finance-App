@@ -21,10 +21,12 @@ export const COLORS = {
 } as const;
 
 export const ALLOCATION_COLORS: Record<string, string> = {
-  Investment: "#0C4A3E",
-  "Personal needs": "#3E7C6B",
-  Family: "#C9A24B",
-  Sadaqah: "#B5843A",
+  Give: "#B5843A",
+  "Investment (Keep)": "#0C4A3E",
+  "Personal Consumption": "#3E7C6B",
+  Parent: "#C9A24B",
+  "Spouse / Marriage": "#D9BC7A",
+  "Relative Family": "#A97D3E",
   Emergency: "#6B7A6F",
 };
 
