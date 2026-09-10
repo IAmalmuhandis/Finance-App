@@ -7,13 +7,14 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { BarChart2, Calculator, TrendingUp } from "lucide-react-native";
+import { BarChart2, Calculator, Sparkles, TrendingUp } from "lucide-react-native";
 
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
 import LoginScreen from "./src/screens/LoginScreen";
 import CalculatorScreen from "./src/screens/CalculatorScreen";
 import ProgressScreen from "./src/screens/ProgressScreen";
 import WealthGuideScreen from "./src/screens/WealthGuideScreen";
+import FlashcardsScreen from "./src/screens/FlashcardsScreen";
 import { THEME } from "./src/theme";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -63,6 +64,7 @@ function MainTabs() {
         tabBarIcon: ({ color, size }) => {
           if (route.name === "Calculator") return <Calculator size={size} color={color} strokeWidth={1.75} />;
           if (route.name === "Wealth Guide") return <BarChart2 size={size} color={color} strokeWidth={1.75} />;
+          if (route.name === "Flashcards") return <Sparkles size={size} color={color} strokeWidth={1.75} />;
           return <TrendingUp size={size} color={color} strokeWidth={1.75} />;
         },
       })}
@@ -80,6 +82,11 @@ function MainTabs() {
       <Tab.Screen
         name="Wealth Guide"
         component={WealthGuideScreen}
+        options={{ headerRight: () => <SignOutButton onPress={() => void signOut()} busy={signingOut} /> }}
+      />
+      <Tab.Screen
+        name="Flashcards"
+        component={FlashcardsScreen}
         options={{ headerRight: () => <SignOutButton onPress={() => void signOut()} busy={signingOut} /> }}
       />
     </Tab.Navigator>

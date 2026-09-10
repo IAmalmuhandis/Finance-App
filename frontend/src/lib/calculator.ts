@@ -1,5 +1,7 @@
 export type BucketType = "Keep" | "Spend" | "Give";
-export type CalculatorMode = "recommended" | "custom";
+export const TIERS = ["starter", "intermediate", "advance"] as const;
+export type Tier = (typeof TIERS)[number];
+export type CalculatorMode = Tier | "custom";
 
 export interface FormulaNode {
   id: string;
@@ -23,33 +25,52 @@ export interface Allocation {
   amount: number;
 }
 
-const THIRD = 100 / 3;
-// New formula: Sadaqah = 20/3 % off the top; remainder = 280/3 %, split into thirds
-const SADAQAH_TOP = 20 / 3; // ~6.667%
-const REMAINDER = 280 / 3; // ~93.333%
-const REMAINDER_THIRD = REMAINDER / 3; // ~31.111% of gross (= 1/3 of remainder)
-const FINAL_CHILD = THIRD; // each child of final third is 1/3 of that group
-
 export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function getRecommendedFormula(): FormulaNode[] {
+/** Final Third's 4 children are always an equal quarter of Final Third's own value. */
+const FINAL_QUARTER = 100 / 4;
+
+function finalThirdChildren(): FormulaNode[] {
   return [
-    { id: "sadaqah-top", name: "Sadaqah", relativePercent: SADAQAH_TOP, type: "Give" },
-    { id: "investment", name: "Investment (Keep)", relativePercent: REMAINDER_THIRD, type: "Keep" },
-    { id: "personal-consumption", name: "Personal Consumption", relativePercent: REMAINDER_THIRD, type: "Spend" },
-    {
-      id: "final-third",
-      name: "Final Third",
-      relativePercent: REMAINDER_THIRD,
-      children: [
-        { id: "family-mom", name: "Family / Mom", relativePercent: FINAL_CHILD, type: "Give" },
-        { id: "sadaqah-relatives", name: "Sadaqah Relatives", relativePercent: FINAL_CHILD, type: "Give" },
-        { id: "emergency", name: "Emergency", relativePercent: FINAL_CHILD, type: "Keep" },
-      ],
-    },
+    { id: "family-mom", name: "Parent", relativePercent: FINAL_QUARTER, type: "Give" },
+    { id: "spouse-marriage", name: "Spouse / Marriage", relativePercent: FINAL_QUARTER, type: "Give" },
+    { id: "sadaqah-relatives", name: "Relative Family", relativePercent: FINAL_QUARTER, type: "Give" },
+    { id: "emergency", name: "Emergency", relativePercent: FINAL_QUARTER, type: "Keep" },
   ];
+}
+
+function buildTierFormula(give: number, investment: number, personalConsumption: number, finalThird: number): FormulaNode[] {
+  return [
+    { id: "sadaqah-top", name: "Give", relativePercent: give, type: "Give" },
+    { id: "investment", name: "Investment (Keep)", relativePercent: investment, type: "Keep" },
+    { id: "personal-consumption", name: "Personal Consumption", relativePercent: personalConsumption, type: "Spend" },
+    { id: "final-third", name: "Final Third", relativePercent: finalThird, children: finalThirdChildren() },
+  ];
+}
+
+/** Starter — Give 15% / Keep 15% / Spend 70% overall. */
+export function getStarterFormula(): FormulaNode[] {
+  return buildTierFormula(6, 12, 70, 12);
+}
+
+/** Intermediate — Give 20% / Keep 28% / Spend 52% overall. */
+export function getIntermediateFormula(): FormulaNode[] {
+  return buildTierFormula(8, 24, 52, 16);
+}
+
+/** Advance — the original formula's exact percentages, re-split 4 ways instead of 3. */
+export function getAdvanceFormula(): FormulaNode[] {
+  const GIVE_TOP = 20 / 3; // ~6.667%
+  const REMAINDER_THIRD = 280 / 9; // ~31.111%
+  return buildTierFormula(GIVE_TOP, REMAINDER_THIRD, REMAINDER_THIRD, REMAINDER_THIRD);
+}
+
+export function getFormulaForTier(tier: Tier): FormulaNode[] {
+  if (tier === "starter") return getStarterFormula();
+  if (tier === "intermediate") return getIntermediateFormula();
+  return getAdvanceFormula();
 }
 
 export function getDefaultCustomFormula(): FormulaNode[] {
@@ -66,6 +87,14 @@ export function siblingsDelta(nodes: FormulaNode[]): number {
 
 export function isSiblingsValid(nodes: FormulaNode[]): boolean {
   return Math.abs(siblingsDelta(nodes)) < 0.01;
+}
+
+export function validateTree(nodes: FormulaNode[]): boolean {
+  if (!isSiblingsValid(nodes)) return false;
+  for (const n of nodes) {
+    if (n.children?.length && !validateTree(n.children)) return false;
+  }
+  return true;
 }
 
 export function collectLeaves(nodes: FormulaNode[], parentEffective = 100): LeafInfo[] {
@@ -139,4 +168,4 @@ export function formatPercent(n: number, digits = 1): string {
 
 export const STORAGE_INCOME = "arzo-last-income";
 export const STORAGE_CUSTOM_FORMULA = "arzo-custom-formula";
-export const STORAGE_RECOMMENDED_FORMULA = "arzo-recommended-formula";
+export const STORAGE_MODE = "arzo-calculator-mode";

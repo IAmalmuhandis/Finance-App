@@ -14,7 +14,7 @@ const EntrySchema = new Schema(
     userId: { type: String, required: true, index: true },
     createdAt: { type: Date, default: Date.now },
     grossAmount: { type: Number, required: true },
-    mode: { type: String, enum: ["recommended", "custom"], required: true },
+    mode: { type: String, enum: ["starter", "intermediate", "advance", "custom", "recommended"], required: true },
     formulaSnapshot: { type: [Schema.Types.Mixed], required: true },
     allocations: { type: [AllocationSchema], required: true },
   },

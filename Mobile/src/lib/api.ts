@@ -281,7 +281,7 @@ export function fetchProgress() {
 
 export function createEntry(body: {
   grossAmount: number;
-  mode: "recommended" | "custom";
+  mode: "starter" | "intermediate" | "advance" | "custom";
   formulaSnapshot: unknown[];
   allocations: { name: string; type: string; amount: number }[];
 }) {
@@ -334,4 +334,57 @@ export function deleteProjection(id: string) {
   return fetchJson<{ ok: boolean }>(`/api/projections/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+}
+
+// ── Calculator tier / Graduate nudge ──────────────────────────────────────────
+
+export type TierStatus = {
+  currentTier: string;
+  tierStartedAt: string;
+  nudge: { eligible: boolean; dismissed: boolean };
+};
+
+export function fetchTierStatus() {
+  return fetchJson<TierStatus>("/api/calculator/tier");
+}
+
+export function updateTier(tier: string) {
+  return fetchJson<TierStatus>("/api/calculator/tier", {
+    method: "POST",
+    body: JSON.stringify({ tier }),
+  });
+}
+
+export function dismissTierNudge() {
+  return fetchJson<TierStatus>("/api/calculator/tier", {
+    method: "POST",
+    body: JSON.stringify({ dismissNudge: true }),
+  });
+}
+
+// ── Flashcards ─────────────────────────────────────────────────────────────────
+
+export type FlashcardData = { id?: string; front: string; back?: string; source: string; category: string };
+export type FlashcardToday = { date: string; card: FlashcardData; seen: boolean; streak: number };
+export type FlashcardHistoryDay = {
+  date: string;
+  card: { front: string; source: string; category: string };
+  seen: boolean;
+};
+
+export function fetchFlashcardToday(date: string) {
+  return fetchJson<FlashcardToday>(`/api/flashcards/today?date=${encodeURIComponent(date)}`);
+}
+
+export function markFlashcardSeen(date: string) {
+  return fetchJson<{ streak: number }>("/api/flashcards/seen", {
+    method: "POST",
+    body: JSON.stringify({ date }),
+  });
+}
+
+export function fetchFlashcardHistory(end: string, days = 30) {
+  return fetchJson<{ days: FlashcardHistoryDay[] }>(
+    `/api/flashcards/history?end=${encodeURIComponent(end)}&days=${days}`
+  );
 }
